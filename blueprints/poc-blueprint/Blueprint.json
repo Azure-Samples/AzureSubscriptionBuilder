@@ -1,0 +1,38 @@
+{
+  "properties": {
+    "displayName": "PoC Blueprint",
+    "description": "PoC Bluprint for Tyler Peterson",
+    "targetScope": "subscription",
+    "parameters": {
+      "location": {
+        "type": "String"
+      }
+    },
+    "resourceGroups": {
+      "SharedServices-RG": {
+        "name": "SharedSvcs-RG",
+        "location": "[parameters('location')]",
+        "metadata": {
+          "displayName": "Resource Group for Shared Services"
+        },
+        "dependsOn": []
+      },
+      "Network-RG": {
+        "name": "Network-RG",
+        "location": "[parameters('location')]",
+        "metadata": {
+          "displayName": "Resource Group for Networks"
+        },
+        "dependsOn": []
+      },
+      "Application-RG": {
+        "name": "App-RG",
+        "location": "[parameters('location')]",
+        "metadata": {
+          "displayName": "Resource Group for First Application"
+        },
+        "dependsOn": []
+      }
+    }
+  }
+}

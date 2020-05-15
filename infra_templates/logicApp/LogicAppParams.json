@@ -1,0 +1,74 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "logicAppName": {
+        "value": "",
+        "metadata": {
+            "description": "name of the Azure Logic App"
+        }
+    },
+    "dbAccountName": {
+        "value": "",
+        "metadata": {
+            "description": "name of CosmosDB Account"
+        }
+    },
+    "dbContainerName": {
+        "value": "",
+        "metadata": {
+            "description": "name of CosmosDB Container"
+        }
+    },
+    "dbName": {
+        "value": "",
+        "metadata": {
+            "description": "name of CosmosDB SQL DB"
+        }
+    },
+    "diagSettingsName": {
+        "value": "",
+        "metadata": {
+            "description": "name of the Diagnostic Settings for Monitoring"
+        }
+    },
+    "workspaceId": {
+        "value": "",
+        "metadata": {
+            "description": "Id of the Log Analytics Workspace"
+        }
+    },
+      "automationAccountName": {
+          "value": "",
+          "metadata": {
+              "description": "name of the Azure Automation Account"
+          }
+      },
+      "automationGrantType": {
+          "value": "client_credentials",
+          "metadata": {
+              "description": "Grant type"
+          }
+      },
+      "appId": {
+          "value": "",
+          "metadata": {
+              "description": "Service Principal Application ID"
+          }
+      },
+      "appSecret": {
+          "reference": {
+              "keyVault": {
+                  "id": ""
+              },
+              "secretName": ""
+          }
+      },
+      "tenantId": {
+          "value": "",
+          "metadata": {
+              "description": "Azure Tenant ID"
+          }
+      }
+  }
+}

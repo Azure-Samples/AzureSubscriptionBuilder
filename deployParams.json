@@ -1,0 +1,7 @@
+{
+  "Name": "subbuilder",
+  "location": "westus2",
+  "rootManagementGroup": "GlobalRootGroup",
+  "pfxCertPath": "C:\\temp\\subbuilder.pfx",
+  "certPass": "passw0rd!"
+}

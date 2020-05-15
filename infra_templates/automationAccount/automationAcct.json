@@ -1,0 +1,248 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "baseStorageUrl": {
+            "type": "string"
+        },
+        "automationAccountName": {
+            "defaultValue": "automationAccount",
+            "type": "String"
+        },
+        "diagSettingsName": {
+            "type": "string",
+            "metadata": {
+                "description": "name of the Diagnostic Settings for Monitoring"
+            }
+        },
+        "workspaceId": {
+            "type": "string",
+            "metadata": {
+                "description": "Id of the Log Analytics Workspace"
+            }
+        },
+        "appId": {
+            "type": "string"
+        },
+        "tenantId": {
+            "type": "string"
+        },
+        "thumbprint": {
+            "type": "securestring"
+        },
+        "certValue": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "runbooks": [
+            {
+                "name": "assign-blueprint",
+                "version": "1.0.0.0",
+                "description": "assigns required blueprint to created subscription",
+                "type": "PowerShell",
+                "Id": "001",
+                "scriptFile": "[concat(parameters('baseStorageUrl'), '/runbooks/assign-blueprint-dynamic.ps1')]"
+            },
+            {
+                "name": "create-mgmt-group",
+                "version": "1.0.0.0",
+                "description": "creates management group",
+                "type": "PowerShell",
+                "Id": "002",
+                "scriptFile": "[concat(parameters('baseStorageUrl'), '/runbooks/create-mgmt-group-dynamic.ps1')]"
+            },
+            {
+                "name": "create-subscription",
+                "version": "1.0.0.0",
+                "description": "creates subscription",
+                "type": "PowerShell",
+                "Id": "003",
+                "scriptFile": "[concat(parameters('baseStorageUrl'), '/runbooks/create-subscription-dynamic.ps1')]"
+            }
+        ],
+        "AzAccountModule": {
+            "name": "Az.Accounts",
+            "description": "Az Account module is dependency for other modules and needs to be installed first",
+            "url": "https://devopsgallerystorage.blob.core.windows.net:443/packages/az.accounts.1.7.0.nupkg"
+        },
+        "modules": [
+            {
+                "name": "Az.Billing",
+                "url": "https://devopsgallerystorage.blob.core.windows.net:443/packages/az.billing.1.0.2.nupkg"
+            },
+            {
+                "name": "Az.Blueprint",
+                "url": "https://devopsgallerystorage.blob.core.windows.net:443/packages/az.blueprint.0.2.9.nupkg"
+            },
+            {
+                "name": "Az.Compute",
+                "url": "https://devopsgallerystorage.blob.core.windows.net:443/packages/az.compute.3.4.0.nupkg"
+            },
+            {
+                "name": "Az.Resources",
+                "url": "https://devopsgallerystorage.blob.core.windows.net:443/packages/az.resources.1.9.1.nupkg"
+            },
+            {
+                "name": "Az.Subscription",
+                "url": "https://devopsgallerystorage.blob.core.windows.net:443/packages/az.subscription.0.7.1-preview.nupkg"
+            }
+        ]
+    },
+    "resources": [
+        {
+            "name": "[parameters('automationAccountName')]",
+            "type": "Microsoft.Automation/automationAccounts",
+            "apiVersion": "2015-10-31",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "sku": {
+                    "name": "Basic"
+                }
+            },
+            "resources": [
+                {
+                    "type": "providers/diagnosticSettings",
+                    "name": "[concat('Microsoft.Insights/', parameters('diagSettingsName'))]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+                    ],
+                    "apiVersion": "2017-05-01-preview",
+                    "properties": {
+                        "name": "[parameters('diagSettingsName')]",
+                        "workspaceId": "[parameters('workspaceId')]",
+                        "logs": [
+                            {
+                                "category": "JobLogs",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            },
+                            {
+                                "category": "JobStreams",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            },
+                            {
+                                "category": "DscNodeStatus",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            }
+                        ],
+                        "metrics": [
+                            {
+                                "timeGrain": "PT1M",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "enabled": false,
+                                    "days": 0
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[concat(parameters('automationAccountName'), '/', 'AutomationSP')]",
+            "type": "Microsoft.Automation/automationAccounts/connections",
+            "apiVersion": "2015-10-31",
+            "dependsOn": [
+                "[parameters('automationAccountName')]"
+            ],
+            "properties": {
+                "description": "Connection to Service Principal",
+                "connectionType": {
+                    "name": "AzureServicePrincipal"
+                },
+                "fieldDefinitionValues": {
+                    "ApplicationId": "[parameters('appId')]",
+                    "TenantId": "[parameters('tenantId')]",
+                    "SubscriptionId": "[subscription().SubscriptionId]",
+                    "CertificateThumbprint": "[parameters('thumbprint')]"
+                }
+            }
+        },
+        {
+            "name": "[concat(parameters('automationAccountName'), '/AutomationCert')]",
+            "type": "Microsoft.Automation/automationAccounts/certificates",
+            "apiVersion": "2015-10-31",
+            "dependsOn": [
+                "[parameters('automationAccountName')]"
+            ],
+            "properties": {
+                "base64Value": "[parameters('certValue')]",
+                "description": "Azure Automation SP Certificate",
+                "thumbprint": "[parameters('thumbprint')]"
+            }
+        },
+        {
+            "type": "Microsoft.Automation/automationAccounts/runbooks",
+            "apiVersion": "2015-10-31",
+            "name": "[concat(parameters('automationAccountName'), '/', variables('runbooks')[copyIndex()].name)]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[parameters('automationAccountName')]"
+            ],
+            "copy": {
+                "name": "runbooksLoop",
+                "count": "[length(variables('runbooks'))]"
+            },
+            "properties": {
+                "description": "[variables('runbooks')[copyIndex()].description]",
+                "runbookType": "[variables('runbooks')[copyIndex()].type]",
+                "logProgress": false,
+                "logVerbose": true,
+                "publishContentLink": {
+                    "uri": "[variables('runbooks')[copyIndex()].scriptFile]",
+                    "version": "[variables('runbooks')[copyIndex()].version]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-10-31",
+            "type": "Microsoft.Automation/automationAccounts/modules",
+            "name": "[concat(parameters('automationAccountName'), '/', variables('AzAccountModule').name)]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[parameters('automationAccountName')]"
+            ],
+            "properties": {
+                "contentLink": {
+                    "uri": "[variables('AzAccountModule').url]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-10-31",
+            "type": "Microsoft.Automation/automationAccounts/modules",
+            "name": "[concat(parameters('automationAccountName'), '/', variables('modules')[copyIndex()].name)]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Automation/automationAccounts/modules/', parameters('automationAccountName'), variables('AzAccountModule').name)]",
+                "[parameters('automationAccountName')]"
+            ],
+            "copy": {
+                "name": "modulesLoop",
+                "count": "[length(variables('modules'))]"
+            },
+            "properties": {
+                "contentLink": {
+                    "uri": "[variables('modules')[copyIndex()].url]"
+                }
+            }
+        }
+    ],
+    "outputs": {
+    },
+    "functions": [
+    ]
+}

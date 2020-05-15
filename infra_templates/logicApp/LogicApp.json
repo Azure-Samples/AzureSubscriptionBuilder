@@ -1,0 +1,933 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "logicAppName": {
+            "type": "string",
+            "metadata": {
+                "description": "name of the Azure Logic App"
+            }
+        },
+        "dbAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "name of CosmosDB Account"
+            }
+        },
+        "dbContainerName": {
+            "type": "string",
+            "metadata": {
+                "description": "name of CosmosDB Container"
+            }
+        },
+        "dbName": {
+            "type": "string",
+            "metadata": {
+                "description": "name of CosmosDB SQL DB"
+            }
+        },
+        "diagSettingsName": {
+            "type": "string",
+            "metadata": {
+                "description": "name of the Diagnostic Settings for Monitoring"
+            }
+        },
+        "workspaceId": {
+            "type": "string",
+            "metadata": {
+                "description": "Id of the Log Analytics Workspace"
+            }
+        },
+        "automationAccountName": {
+            "defaultValue": "test-automation",
+            "type": "String",
+            "metadata": {
+                "description": "name of the Azure Automation Account"
+            }
+        },
+        "automationGrantType": {
+            "type": "string",
+            "defaultValue": "client_credentials",
+            "metadata": {
+                "description": "Grant type"
+            }
+        },
+        "appId": {
+            "type": "string",
+            "metadata": {
+                "description": "Service Principal Application ID"
+            }
+        },
+        "appSecret": {
+            "type": "secureString",
+            "metadata": {
+                "description": "Secret for Service Principal"
+            }
+        },
+        "tenantId": {
+            "type": "string",
+            "metadata": {
+                "description": "Azure Tenant ID"
+            }
+        }
+    },
+    "resources": [
+        {
+            "name": "AzAutomation",
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+            },
+            "properties": {
+                "displayName": "Azure Automation Connection",
+                "api": {
+                    "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureautomation')]"
+                },
+                "parameterValues": {
+                    "token:clientId": "[parameters('appId')]",
+                    "token:clientSecret": "[parameters('appSecret')]",
+                    "token:TenantId": "[parameters('tenantId')]",
+                    "token:grantType": "[parameters('automationGrantType')]"
+                }
+            }
+        },
+        {
+            "name": "DocumentDb",
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+            },
+            "properties": {
+                "displayName": "Azure CosmosDB Connection",
+                "api": {
+                    "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/documentdb')]"
+                },
+                "parameterValues": {
+                    "databaseAccount": "[parameters('dbAccountName')]",
+                    "accessKey": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('dbAccountName')), '2015-04-08').primaryMasterKey]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('logicAppName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', 'AzAutomation')]"
+            ],
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "actions": {
+                        "Compose_guid": {
+                            "runAfter": {},
+                            "type": "Compose",
+                            "inputs": "@guid()"
+                        },
+                        "Create_document": {
+                            "runAfter": {
+                                "Compose_guid": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "id": "@{outputs('Compose_guid')}",
+                                    "request": "@triggerBody()",
+                                    "state": "running"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{outputs('Compose_guid')}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "[concat('/dbs/', parameters('dbName'), '/colls/', parameters('dbContainerName'), '/docs')]"
+                            }
+                        },
+                        "Create_management_group": {
+                            "runAfter": {
+                                "Initialize_blueprintAssignments_array": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "properties": {
+                                        "parameters": {
+                                            "BusinessUnit": "@{triggerBody()[0]?['businessUnit']}"
+                                        }
+                                    }
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['automation']['connectionId']"
+                                    }
+                                },
+                                "method": "put",
+                                        "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs')]",
+                                "queries": {
+                                    "runbookName": "create-mgmt-group",
+                                    "wait": true,
+                                    "x-ms-api-version": "2015-10-31"
+                                }
+                            }
+                        },  
+                        "For_each_assign_blueprint": {
+                            "foreach": "@variables('subscriptionIds')",
+                            "actions": {
+                                "Append_to_blueprintAssignments_array": {
+                                    "runAfter": {
+                                        "Parse_JSON_blueprint_assignment": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "AppendToArrayVariable",
+                                    "inputs": {
+                                        "name": "blueprintAssignments",
+                                        "value": "@body('Parse_JSON_blueprint_assignment')?['blueprintAssignment']"
+                                    }
+                                },
+                                "Assign_blueprint": {
+                                    "runAfter": {},
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "body": {
+                                            "properties": {
+                                                "parameters": {
+                                                    "BusinessUnit": "@{triggerBody()[0]?['businessUnit']}",
+                                                    "Location": "@triggerBody()[0]?['location']",
+                                                    "blueprintName": "@triggerBody()[0]?['blueprintName']",
+                                                    "subId": "@items('For_each_assign_blueprint')"
+                                                }
+                                            }
+                                        },
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['automation']['connectionId']"
+                                            }
+                                        },
+                                        "method": "put",
+                                        "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs')]",
+                                        "queries": {
+                                            "runbookName": "assign-blueprint",
+                                            "wait": true,
+                                            "x-ms-api-version": "2015-10-31"
+                                        }
+                                    }
+                                },
+                                "Get_blueprint_assignment": {
+                                    "runAfter": {
+                                        "Assign_blueprint": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['automation']['connectionId']"
+                                            }
+                                        },
+                                        "method": "get",
+                                        "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs/@{encodeURIComponent(body(''Assign_blueprint'')?[''properties'']?[''jobId''])}/output')]",
+                                        "queries": {
+                                            "x-ms-api-version": "2015-10-31"
+                                        }
+                                    }
+                                },
+                                "Parse_JSON_blueprint_assignment": {
+                                    "runAfter": {
+                                        "Get_blueprint_assignment": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ParseJson",
+                                    "inputs": {
+                                        "content": "@body('Get_blueprint_assignment')",
+                                        "schema": {
+                                            "properties": {
+                                                "blueprintAssignment": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Update_document_with_subscription_id": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "Get_management_group": {
+                            "runAfter": {
+                                "Create_management_group": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['automation']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs/@{encodeURIComponent(body(''Create_management_group'')?[''properties'']?[''jobId''])}/output')]",
+                                "queries": {
+                                    "x-ms-api-version": "2015-10-31"
+                                }
+                            }
+                        },
+                        "Initialize_blueprintAssignments_array": {
+                            "runAfter": {
+                                "Initialize_prodSub_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "blueprintAssignments",
+                                        "type": "array"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_devTestSubCounter": {
+                            "runAfter": {
+                                "Initialize_subscriptionIds_array": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "devTestSubCounter",
+                                        "type": "integer",
+                                        "value": 0
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_devTestSub_variable": {
+                            "runAfter": {
+                                "Initialize_prodSubCounter": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "devTestOfferType",
+                                        "type": "string",
+                                        "value": "MS-AZR-0148P"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_prodSubCounter": {
+                            "runAfter": {
+                                "Initialize_devTestSubCounter": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "prodSubCounter",
+                                        "type": "integer",
+                                        "value": 0
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_prodSub_variable": {
+                            "runAfter": {
+                                "Initialize_devTestSub_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "prodOfferType",
+                                        "type": "string",
+                                        "value": "MS-AZR-0017P"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_subscriptionIds_array": {
+                            "runAfter": {
+                                "Create_document": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "subscriptionIds",
+                                        "type": "array"
+                                    }
+                                ]
+                            }
+                        },
+                        "Parse_JSON_management_group": {
+                            "runAfter": {
+                                "Get_management_group": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ParseJson",
+                            "inputs": {
+                                "content": "@body('Get_management_group')",
+                                "schema": {
+                                    "properties": {
+                                        "managementGroupName": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "Scope_create_subscription": {
+                            "actions": {
+                                "Condition_dev_test_subscription": {
+                                    "actions": {
+                                        "Until_devTestSubCount": {
+                                            "actions": {
+                                                "Append_dev_test_to_subscriptionIds_array": {
+                                                    "runAfter": {
+                                                        "Parse_JSON_dev_test_subscription_id": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "AppendToArrayVariable",
+                                                    "inputs": {
+                                                        "name": "subscriptionIds",
+                                                        "value": "@body('Parse_JSON_dev_test_subscription_id')?['subscriptionId']"
+                                                    }
+                                                },
+                                                "Create_dev_test_subscription": {
+                                                    "runAfter": {
+                                                        "Increment_devTestSubCounter": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "body": {
+                                                            "properties": {
+                                                                "parameters": {
+                                                                    "BusinessUnit": "@{triggerBody()[0]?['businessUnit']}",
+                                                                    "mgmtGroupName": "@body('Parse_JSON_management_group')?['managementGroupName']",
+                                                                    "offerType": "@variables('devTestOfferType')"
+                                                                }
+                                                            }
+                                                        },
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['automation']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "put",
+                                                        "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs')]",
+                                                        "queries": {
+                                                            "runbookName": "create-subscription",
+                                                            "wait": true,
+                                                            "x-ms-api-version": "2015-10-31"
+                                                        }
+                                                    }
+                                                },
+                                                "Get_dev_test_subscription_id": {
+                                                    "runAfter": {
+                                                        "Create_dev_test_subscription": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['automation']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "get",
+                                                        "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs/@{encodeURIComponent(body(''Create_dev_test_subscription'')?[''properties'']?[''jobId''])}/output')]",
+                                                        "queries": {
+                                                            "x-ms-api-version": "2015-10-31"
+                                                        }
+                                                    }
+                                                },
+                                                "Increment_devTestSubCounter": {
+                                                    "runAfter": {},
+                                                    "type": "IncrementVariable",
+                                                    "inputs": {
+                                                        "name": "devTestSubCounter",
+                                                        "value": 1
+                                                    }
+                                                },
+                                                "Parse_JSON_dev_test_subscription_id": {
+                                                    "runAfter": {
+                                                        "Get_dev_test_subscription_id": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ParseJson",
+                                                    "inputs": {
+                                                        "content": "@body('Get_dev_test_subscription_id')",
+                                                        "schema": {
+                                                            "properties": {
+                                                                "subscriptionId": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "runAfter": {},
+                                            "expression": "@equals(variables('devTestSubCounter'), int(triggerBody()[0]?['devTestSubCount']))",
+                                            "limit": {
+                                                "count": 60,
+                                                "timeout": "PT1H"
+                                            },
+                                            "type": "Until"
+                                        }
+                                    },
+                                    "runAfter": {},
+                                    "expression": {
+                                        "and": [
+                                            {
+                                                "greater": [
+                                                    "@int(triggerBody()[0]?['devTestSubCount'])",
+                                                    0
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    "type": "If"
+                                },
+                                "Condition_prod_subscription": {
+                                    "actions": {
+                                        "Until_prodSubCount": {
+                                            "actions": {
+                                                "Append_prod_to_subscriptionIds_array": {
+                                                    "runAfter": {
+                                                        "Parse_JSON_prod_subscription_id": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "AppendToArrayVariable",
+                                                    "inputs": {
+                                                        "name": "subscriptionIds",
+                                                        "value": "@body('Parse_JSON_prod_subscription_id')?['subscriptionId']"
+                                                    }
+                                                },
+                                                "Create_prod_subscription": {
+                                                    "runAfter": {
+                                                        "Increment_prodSubCounter": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "body": {
+                                                            "properties": {
+                                                                "parameters": {
+                                                                    "BusinessUnit": "@{triggerBody()[0]?['businessUnit']}",
+                                                                    "mgmtGroupName": "@body('Parse_JSON_management_group')?['managementGroupName']",
+                                                                    "offerType": "@variables('prodOfferType')"
+                                                                }
+                                                            }
+                                                        },
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['automation']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "put",
+                                                        "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs')]",
+                                                        "queries": {
+                                                            "runbookName": "create-subscription",
+                                                            "wait": true,
+                                                            "x-ms-api-version": "2015-10-31"
+                                                        }
+                                                    }
+                                                },
+                                                "Get_prod_subscription_id": {
+                                                    "runAfter": {
+                                                        "Create_prod_subscription": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ApiConnection",
+                                                    "inputs": {
+                                                        "host": {
+                                                            "connection": {
+                                                                "name": "@parameters('$connections')['automation']['connectionId']"
+                                                            }
+                                                        },
+                                                        "method": "get",
+                                                        "path": "[concat(subscription().id, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Automation/automationAccounts/', parameters('automationAccountName'), '/jobs/@{encodeURIComponent(body(''Create_prod_subscription'')?[''properties'']?[''jobId''])}/output')]",
+                                                        "queries": {
+                                                            "x-ms-api-version": "2015-10-31"
+                                                        }
+                                                    }
+                                                },
+                                                "Increment_prodSubCounter": {
+                                                    "runAfter": {},
+                                                    "type": "IncrementVariable",
+                                                    "inputs": {
+                                                        "name": "prodSubCounter",
+                                                        "value": 1
+                                                    }
+                                                },
+                                                "Parse_JSON_prod_subscription_id": {
+                                                    "runAfter": {
+                                                        "Get_prod_subscription_id": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "ParseJson",
+                                                    "inputs": {
+                                                        "content": "@body('Get_prod_subscription_id')",
+                                                        "schema": {
+                                                            "properties": {
+                                                                "subscriptionId": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "runAfter": {},
+                                            "expression": "@equals(variables('prodSubCounter'), int(triggerBody()[0]?['prodSubCount']))",
+                                            "limit": {
+                                                "count": 60,
+                                                "timeout": "PT1H"
+                                            },
+                                            "type": "Until"
+                                        }
+                                    },
+                                    "runAfter": {
+                                        "Condition_dev_test_subscription": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "expression": {
+                                        "and": [
+                                            {
+                                                "greater": [
+                                                    "@int(triggerBody()[0]?['prodSubCount'])",
+                                                    0
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    "type": "If"
+                                }
+                            },
+                            "runAfter": {
+                                "Update_document_with_management_group": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Scope"
+                        },
+                        "Update_document_on_assign_blueprint_failure": {
+                            "runAfter": {
+                                "For_each_assign_blueprint": [
+                                    "Failed",
+                                    "Skipped",
+                                    "TimedOut"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "id": "@{outputs('Compose_guid')}",
+                                    "managementGroup": "@{body('Parse_JSON_management_group')?['managementGroupName']}",
+                                    "request": "@triggerBody()",
+                                    "state": "failed",
+                                    "subscriptionIds": "@variables('subscriptionIds')"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-is-upsert": true,
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{outputs('Compose_guid')}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "[concat('/dbs/', parameters('dbName'), '/colls/', parameters('dbContainerName'), '/docs')]"
+                            }
+                        },
+                        "Update_document_on_create_management_group_failure": {
+                            "runAfter": {
+                                "Create_management_group": [
+                                    "Failed",
+                                    "TimedOut",
+                                    "Skipped"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "id": "@{outputs('Compose_guid')}",
+                                    "request": "@triggerBody()",
+                                    "state": "failed"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-is-upsert": true,
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{outputs('Compose_guid')}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "[concat('/dbs/', parameters('dbName'), '/colls/', parameters('dbContainerName'), '/docs')]"
+                            }
+                        },
+                        "Update_document_on_create_subscription_failure": {
+                            "runAfter": {
+                                "Scope_create_subscription": [
+                                    "Failed",
+                                    "Skipped",
+                                    "TimedOut"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "id": "@{outputs('Compose_guid')}",
+                                    "managementGroup": "@{body('Parse_JSON_management_group')?['managementGroupName']}",
+                                    "request": "@triggerBody()",
+                                    "state": "failed"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-is-upsert": true,
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{outputs('Compose_guid')}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "[concat('/dbs/', parameters('dbName'), '/colls/', parameters('dbContainerName'), '/docs')]"
+                            }
+                        },
+                        "Update_document_with_blueprint_assignment": {
+                            "runAfter": {
+                                "For_each_assign_blueprint": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "blueprintAssignments": "@variables('blueprintAssignments')",
+                                    "id": "@{outputs('Compose_guid')}",
+                                    "managementGroup": "@{body('Parse_JSON_management_group')?['managementGroupName']}",
+                                    "request": "@triggerBody()",
+                                    "state": "completed",
+                                    "subscriptionIds": "@variables('subscriptionIds')"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-is-upsert": true,
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{outputs('Compose_guid')}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "[concat('/dbs/', parameters('dbName'), '/colls/', parameters('dbContainerName'), '/docs')]"
+                            }
+                        },
+                        "Update_document_with_management_group": {
+                            "runAfter": {
+                                "Parse_JSON_management_group": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "id": "@{outputs('Compose_guid')}",
+                                    "managementGroup": "@{body('Parse_JSON_management_group')?['managementGroupName']}",
+                                    "request": "@triggerBody()",
+                                    "state": "running"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-is-upsert": true,
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{outputs('Compose_guid')}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "[concat('/dbs/', parameters('dbName'), '/colls/', parameters('dbContainerName'), '/docs')]"
+                            }
+                        },
+                        "Update_document_with_subscription_id": {
+                            "runAfter": {
+                                "Scope_create_subscription": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "id": "@{outputs('Compose_guid')}",
+                                    "managementGroup": "@{body('Parse_JSON_management_group')?['managementGroupName']}",
+                                    "request": "@triggerBody()",
+                                    "state": "running",
+                                    "subscriptionIds": "@variables('subscriptionIds')"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-is-upsert": true,
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{outputs('Compose_guid')}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "[concat('/dbs/', parameters('dbName'), '/colls/', parameters('dbContainerName'), '/docs')]"
+                            }
+                        }
+                    },
+                    "contentVersion": "1.0.0.0",
+                    "outputs": {
+                    },
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {
+                            },
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "manual": {
+                            "type": "Request",
+                            "kind": "Http",
+                            "inputs": {
+                                "method": "POST",
+                                "schema": {
+                                    "properties": {
+                                        "blueprintName": {
+                                            "type": "string"
+                                        },
+                                        "businessUnit": {
+                                            "type": "string"
+                                        },
+                                        "devTestSubCount": {
+                                            "type": "string"
+                                        },
+                                        "location": {
+                                            "type": "string"
+                                        },
+                                        "prodSubCount": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "automation": {
+                                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureautomation')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections/', 'AzAutomation')]",
+                                "connectionName": "AzAutomation"
+                            },
+                            "documentdb": {
+                                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/documentdb')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections/', 'DocumentDb')]",
+                                "connectionName": "DocumentDb"
+                            }
+                        }
+                    }
+                }
+            },
+            "resources": [
+                {
+                    "type": "providers/diagnosticSettings",
+                    "name": "[concat('Microsoft.Insights/', parameters('diagSettingsName'))]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Logic/workflows', parameters('logicAppName'))]"
+                    ],
+                    "apiVersion": "2017-05-01-preview",
+                    "properties": {
+                        "name": "[parameters('diagSettingsName')]",
+                        "workspaceId": "[parameters('workspaceId')]",
+                        "logs": [
+                            {
+                                "category": "WorkflowRuntime",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "days": 0,
+                                    "enabled": false
+                                }
+                            }
+                        ],
+                        "metrics": [
+                            {
+                                "timeGrain": "PT1M",
+                                "enabled": true,
+                                "retentionPolicy": {
+                                    "enabled": false,
+                                    "days": 0
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ],
+    "outputs": {
+        "LogicAppTriggerURL": {
+            "type": "string",
+            "value": "[listCallbackURL(resourceId('Microsoft.Logic/workflows/triggers/', parameters('logicAppName'), 'manual'), '2016-06-01').value]"
+        }
+    }
+}

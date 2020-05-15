@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Subscription Builder</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <style>
+    .bg-1 {
+      background-color: rgb(65, 179, 255);
+      /* light blue */
+      color: #ffffff;
+    }
+
+    .bg-2 {
+      background-color: rgb(251, 251, 251);
+      /* for browsers that don't support images */
+      background-image: url("spring-cloud.jpg");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: cover;
+    }
+
+    .bg-3 {
+      background-color: rgb(145, 211, 255);
+      /* for browsers that don't support images */
+    }
+
+    .container-fluid {
+      padding-top: 35px;
+      padding-bottom: 35px;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container-fluid bg-1 text-center" id="title">
+    <h1 style="font-size:70px">Azure Subscription Builder</h1>
+    <hr>
+    <p style="font-size:20px">Welcome to the Azure Subscription Builder Service! We are excited to provide you a way
+      to provision secure and policy compliant Azure Subscriptions. Enjoy!</p>
+  </div>
+
+  <div class="container-fluid bg-2 text-center" id="body">
+    <div class="col-sm-6" id="variables">
+      <h2>Required Input Variables:</h2>
+      <p>To get started just fill in the following values and click the "Submit" button:</p>
+      <form class="form-horizontal" id="intake">
+        <div class="form-group">
+          <label class="control-label col-sm-5" for="bu">Business Unit:</label>
+          <div class="col-sm-4">
+            <input type="text" class="form-control" id="bu" placeholder="Enter Business Unit" name="businessUnit">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="control-label col-sm-5" for="location">Location:</label>
+          <div class="col-sm-4">
+            <input type="text" class="form-control" id="location" placeholder="Enter Azure Region" name="location">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="control-label col-sm-5" for="devTestSubCount">No. of DevTest Subscriptions:</label>
+          <div class="col-sm-4">
+            <input type="text" class="form-control" id="devTestSubCount" placeholder="Enter desired number of dev/test subscriptions"
+              name="devTestSubCount">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="control-label col-sm-5" for="prodSubCount">No. of Production Subscriptions:</label>
+          <div class="col-sm-4">
+            <input type="text" class="form-control" id="prodSubCount" placeholder="Enter desired number of production subscriptions"
+              name="prodSubCount">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="col-sm-offset-4 col-sm-4">
+            <b id="submitButton" href="#" class="btn btn-default btn-md" align="center" style="color:blue;width:50%"
+              onclick="clearResults(this);displayValues(this)">Submit</b>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="col-sm-6" id="build">
+      <h2>Review Your Selections before Deployment:</h2>
+      <div id="output"></div>
+      <a id="cancelButton" href="#" class="btn btn-default btn-md" align="center" style="color:red;width:20%"
+        onclick="cancel(this)">Cancel</a>
+      <b id="buildButton" href="#" class="btn btn-default btn-md hidden" align="center" style="color:green;width:20%"
+        onclick="buildValues(this);">BUILD</b>
+    </div>
+  </div>
+
+  <div class="container-fluid bg-3 text-center" id="results" style="height:300px">
+    <div id="apiresults"></div>
+    <div id="apiresponse"></div>
+  </div>
+
+  <script>
+
+    $(document).ready(function () {
+      var btn = $('#submitButton,#buildButton').click(function () { // bind click handler to both button
+        $(this).addClass('hidden'); // hide the clicked button
+        btn.not(this).removeClass('hidden'); // show the another button which is hidden
+      });
+    });
+
+    function cancel(el) {
+      window.location.reload()
+    }
+
+    function clearResults(el) {
+      document.getElementById('apiresults').innerHTML = "";
+      document.getElementById('apiresponse').innerHTML = "";
+    }
+
+    function displayValues(el) {
+      let businessUnit = document.getElementById('bu').value;
+      let location = document.getElementById('location').value;
+      let devTestSubCount = document.getElementById('devTestSubCount').value;
+      let prodSubCount = document.getElementById('prodSubCount').value;
+      let op =
+        `
+        <div class="alert alert-info" role="alert">
+          You have selected to deploy "${document.getElementById('devTestSubCount').value}" dev/test subscription(s) and "${document.getElementById('prodSubCount').value}" production subscriptions for the "${document.getElementById('bu').value}" business unit. These subscriptions will be deployed into the "${document.getElementById('location').value}" Azure Region. If you would like to proceed, click 'BUILD'. To cancel, press 'Cancel'
+        </div> 
+        `
+      document.getElementById('output').innerHTML = op;
+    }
+
+    function buildValues(el) {
+      let businessUnit = document.getElementById('bu').value;
+      let location = document.getElementById('location').value;
+      let devTestSubCount = document.getElementById('devTestSubCount').value;
+      let prodSubCount = document.getElementById('prodSubCount').value;
+      let blueprintName = "sub-poc-blueprint";
+      fetch('LogicAppURL', {
+        method: 'POST',
+        headers: {
+          'Content-type': 'application/json'
+        },
+        body: JSON.stringify([{
+          businessUnit: businessUnit,
+          location: location,
+          devTestSubCount: devTestSubCount,
+          prodSubCount: prodSubCount,
+          blueprintName: blueprintName
+        }])
+      })
+        .then((res) => processResponse(res))
+      document.getElementById('intake').reset();
+      document.getElementById('output').innerHTML = "";
+      document.getElementById('submitButton').removeClass('hidden');
+      document.getElementById('buildButton').addClass('hidden');
+    }
+
+    function processResponse(response) {
+      if (response.status === 202) {
+        results =
+          `
+        <div class="alert alert-success" role="alert">
+          Trigger was Successfull!!
+        </div>        
+        `;
+        resp =
+          `
+				<div>Workflow ID: ${response.headers.get('x-ms-workflow-id')}</div>
+				<div>Workflow Run ID: ${response.headers.get('x-ms-workflow-run-id')}</div>
+				<div>Workflow Name: ${response.headers.get('x-ms-workflow-name')}</div>
+				`;
+        document.getElementById('apiresults').innerHTML = results;
+        document.getElementById('apiresponse').innerHTML = resp;
+        setTimeout('window.location.reload()', 10000);
+      } else {
+        results =
+          `
+        <div class="alert alert-danger" role="alert">
+          Oh no! Something went wrong :(
+        </div>        
+        `;
+        resp =
+          `
+        <div>API STATUS CODE: ${response.status}</div>
+          `
+        document.getElementById('apiresults').innerHTML = results;
+        document.getElementById('apiresponse').innerHTML = resp;
+        setTimeout('window.location.reload()', 10000);
+      }
+    }
+
+  </script>
+</body>
+
+</html>
