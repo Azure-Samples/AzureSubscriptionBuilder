@@ -193,6 +193,7 @@ If you were to test with cURL or Postman, An example payload would look like the
     }
 ]
 ```
+**NOTE: IF YOU CHOOSE NOT TO DEPLOY ONE OF THE SUBSCRIPTION OFFER TYPES (DEV/TEST OR PROD) _YOU NEED TO ENTER 0 FOR THE VALUE_**
 
 ### Optional web front end - hosted as static website in a blob container
 
@@ -312,7 +313,7 @@ For the purpose of this proof of concept we have not integrated security into th
 
 The following documentation from Azure walks though best practices on securing the HTTP Trigger: [Securing Logic Apps](https://docs.microsoft.com/en-us/azure/logic-apps/logic-apps-securing-a-logic-app#access-to-request-based-triggers)
 
-**IT IS RECOMMENDED TO USE AVAILABLE SECURITY CONTROLS IN A PRODUCTION DEPLOYMENT**
+**_IT IS RECOMMENDED TO USE AVAILABLE SECURITY CONTROLS IN A PRODUCTION DEPLOYMENT_**
 
 ## FAQ
 
