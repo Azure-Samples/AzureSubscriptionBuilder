@@ -14,7 +14,6 @@ products:
 - azure-resource-manager-templates
 - azure-blueprints
 description: "The Azure Subscription Builder project allows an Enterprise Account owner to quickly deploy secure, policy compliant, Azure Subscriptions"
-urlFragment: "update-this-to-unique-url-stub"
 ---
 
 # Azure Subscription Builder
