@@ -33,14 +33,14 @@ The Azure Subscription Builder project allows an Enterprise Account owner to qui
 
 | File/folder       | Description                                |
 |-------------------|--------------------------------------------|
-| `blueprints`      | A sample blueprint for deployment. You can bring your own.|
-| `images`          | Architecture design, example screenshots, and images for optional web frontend.|
-| `infra_templates` | ARM templates for infrastructure deployment.|
-| `runbooks`        | Azure Automation Runbooks leveraged by the tool.|
-| `WebFrontEnd`     | Optional web frontend.                     |
+| `blueprints/`      | A sample blueprint for deployment. You can bring your own.|
+| `images/`          | Architecture design, example screenshots, and images for optional web frontend.|
+| `infra_templates/` | ARM templates for infrastructure deployment.|
+| `runbooks/`        | Azure Automation Runbooks leveraged by the tool.|
+| `WebFrontEnd/`     | Optional web frontend.                     |
 | `deploy.ps1`      | PowerShell script to deploy tool.          |
 | `deployParams.json`| Deployment parameters used by `deploy.ps1` and `teardown.ps1`.          |
-| `teardown.ps1`      | PowerShell script to decommission the tool. Makes testing and experimentation easy.          |
+| `teardown.ps1`    | PowerShell script to decommission the tool. Makes testing and experimentation easy.|
 | `.gitignore`      | Define what to ignore at commit time.      |
 | `CHANGELOG.md`    | List of changes to the sample.             |
 | `CONTRIBUTING.md` | Guidelines for contributing to the sample. |
@@ -276,8 +276,6 @@ The included deploy script, `deploy.ps1`, will build the following infrastructur
 
 ### Architecture and workflow
 
-_Arcitecture diagram for Subscription Builder Service_
-
 ![Azure Subscription Builder Architecture](./images/infrastructure/architecture.png)
 ![Azure Subscription Builder Workflow](./images/infrastructure/workflow.png)
 
@@ -315,10 +313,6 @@ For the purpose of this proof of concept we have not integrated security into th
 The following documentation from Azure walks though best practices on securing the HTTP Trigger: [Securing Logic Apps](https://docs.microsoft.com/en-us/azure/logic-apps/logic-apps-securing-a-logic-app#access-to-request-based-triggers)
 
 **IT IS RECOMMENDED TO USE AVAILABLE SECURITY CONTROLS IN A PRODUCTION DEPLOYMENT**
-
-## WHAT IS COMING UP NEXT?
-- Working on getting this entire deployment packaged up into a single Blueprint.
-- Landing Zone Deployment Package
 
 ## FAQ
 
