@@ -329,8 +329,15 @@ The goal for Subscription Builder is to become the de facto standard for Subscri
 
 **Who are the awesome people that built this??**
 
-Tyler, Harvey, and Chris are just some PNW computer nerds with our heads always in the clouds! 
+Tyler, Harvey, and Chris are just some PNW computer nerds with our heads always in the clouds!
 
+**Want to know more about Azure Subscription Builder??**
+
+Please make sure to to check out the official Azure Subscription Builder presentation available here:
+- [Power Point Presentation](https://subbuilderstgacct.blob.core.windows.net/presentation/AzureSubscriptionBuilder.pptx)
+- [PDF Document](https://subbuilderstgacct.blob.core.windows.net/presentation/AzureSubscriptionBuilder.pdf)
+
+Also, feel free to reach out to subscriptionbuilder@microsoft.com with any questions or feedback!
 
 ## Contributing
 
