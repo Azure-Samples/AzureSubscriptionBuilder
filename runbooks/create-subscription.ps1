@@ -38,10 +38,10 @@ $ea = Get-AzEnrollmentAccount
 Write-Verbose -Message "The Enrollment Account ID is $($ea.ObjectId)"
 
 # Create subscription
-$completed = $false
+$subCreateComplete = $false
 $subCreateAttempts = 1
 
-while (-not $completed) {
+while (-not $subCreateComplete) {
     try {
         $sub = New-AzSubscription `
         -OfferType $offerType `
@@ -50,7 +50,7 @@ while (-not $completed) {
     
         Write-Verbose -Message "successfully created subscription: $($sub.Id)"
 
-        $completed = $true
+        $subCreateComplete = $true
         
     }
     catch {
@@ -86,7 +86,9 @@ catch {
 
 }
 
-# Validate the subscription has been successfully moved into management group
+# Validate subscription has been successfully moved into management group
+$subMoveComplete = $false
+
 do {
     $mgmtGrpInfo = Get-AzManagementGroup `
     -GroupName $mgmtGroupName `
@@ -97,12 +99,9 @@ do {
 
     }
     else {
-        $subMoveComplete = $false
+        Start-Sleep -Seconds 5
 
     }
-
-    Start-Sleep -Seconds 5
-    
 }
 while (-not $subMoveComplete)
 
