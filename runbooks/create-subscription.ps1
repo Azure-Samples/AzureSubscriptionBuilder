@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 
 # Authenticate to azure
 $connectionName = "AutomationSP"
+
 try
 {
     # Get the automation account connection
@@ -37,19 +38,37 @@ $ea = Get-AzEnrollmentAccount
 Write-Verbose -Message "The Enrollment Account ID is $($ea.ObjectId)"
 
 # Create subscription
-try {
-    $sub = New-AzSubscription `
-    -OfferType $offerType `
-    -Name "$businessUnit-subscription" `
-    -EnrollmentAccountObjectId $ea.ObjectId
+$completed = $false
+$retryAttempts = 1
 
-    Write-Verbose -Message "successfully created subscription: $($sub.Id)"
+while (-not $completed) {
+    try {
+        $sub = New-AzSubscription `
+        -OfferType $offerType `
+        -Name "$businessUnit-subscription" `
+        -EnrollmentAccountObjectId $ea.ObjectId
     
-}
-catch {
-    Write-Error -Message $_.Exception
-    throw $_.Exception
+        Write-Verbose -Message "successfully created subscription: $($sub.Id)"
 
+        $completed = $true
+        
+    }
+    catch {
+        if ($_.Exception.Message.Contains("status code '429'")) {
+            Write-Warning -Message "Experiencing rate limiting...retry attempt $retryAttempts..."
+            $sleep = [math]::Pow($retryAttempts,2)
+
+            Start-Sleep $sleep
+
+            $retryAttempts ++
+            
+        }
+        else {
+            Write-Error -Message $_.Exception
+            throw $_.Exception
+            
+        }
+    }
 }
 
 # Move subscription into management group
@@ -79,13 +98,13 @@ do {
     }
     else {
         $subMoveComplete = $false
-        
+
     }
 
     Start-Sleep 5
     
 }
-while ($subMoveComplete -eq $false)
+while (-not $subMoveComplete)
 
 Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
 
