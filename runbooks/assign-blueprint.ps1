@@ -80,7 +80,7 @@ do {
     -Name $blueprintAssignment.Name `
     -SubscriptionId $subId).ProvisioningState
 
-    Start-Sleep 5
+    Start-Sleep -Seconds 5
     
 }
 while ($provisioningState -ne "Succeeded")
