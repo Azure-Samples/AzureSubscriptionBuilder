@@ -58,7 +58,7 @@ try {
     -GroupName $mgmtGroupName `
     -SubscriptionId $sub.Id
 
-    Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
+    Write-Verbose -Message "moving subscription: $($sub.Id) into management group: $mgmtGroupName"
 
 }
 catch {
@@ -66,6 +66,29 @@ catch {
     throw $_.Exception
 
 }
+
+# Validate the subscription has been successfully moved into management group
+do {
+    $mgmtGrpInfo = Get-AzManagementGroup `
+    -GroupName $mgmtGroupName `
+    -Expand
+
+    if ($mgmtGrpInfo.Children | Where-Object {$_.Name -eq $sub.Id }) {
+        $subMoveComplete = $true
+
+    }
+    else {
+        $subMoveComplete = $false
+        
+    }
+
+    Start-Sleep 5
+    
+}
+while ($subMoveComplete -eq $false)
+
+Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
+
 
 # Output subscription id information in JSON format
 $objOut = [PSCustomObject]@{
