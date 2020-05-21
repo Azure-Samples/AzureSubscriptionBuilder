@@ -37,17 +37,23 @@ $mgmtGroup = Get-AzManagementGroup `
     -ErrorAction SilentlyContinue
 
 if (!$mgmtGroup) {
-    # Create management group
-    $mgmtGroup = New-AzManagementGroup `
-    -GroupName "$businessUnit-mgmtgrp" `
-    -DisplayName "$businessUnit-mgmtgrp" `
-    -ParentId "/providers/Microsoft.Management/managementGroups/rootMgmtGroup"
-    
-    Write-Verbose -Message "successfully created management group: $($mgmtGroup.Name)"
+    try {
+        # Create management group
+        $mgmtGroup = New-AzManagementGroup `
+        -GroupName "$businessUnit-mgmtgrp" `
+        -DisplayName "$businessUnit-mgmtgrp" `
+        -ParentId "/providers/Microsoft.Management/managementGroups/rootMgmtGroup"
+        
+        Write-Verbose -Message "successfully created management group: $($mgmtGroup.Name)"
+    }
+    catch {
+        Write-Error -Message $_.Exception
+        throw $_.Exception
+    }
 
 } else {
     Write-Warning -Message "$($mgmtGroup.DisplayName) already exists, proceeding to subscription creation..."
-    Write-Verbose -Message "$($mgmtGroup.DisplayName) already exists, proceeding to subscription creation..."
+
 }
 
 # Output management group and subscription id information in JSON format

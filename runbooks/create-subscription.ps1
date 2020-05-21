@@ -40,6 +40,7 @@ Write-Verbose -Message "The Enrollment Account ID is $($ea.ObjectId)"
 # Create subscription
 $subCreateComplete = $false
 $subCreateAttempts = 1
+$subCreateMaxAttempts = 10
 
 while (-not $subCreateComplete) {
     try {
@@ -54,8 +55,8 @@ while (-not $subCreateComplete) {
         
     }
     catch {
-        if ($_.Exception.Message.Contains("status code '429'")) {
-            Write-Warning -Message "Experiencing rate limiting...retry attempt $subCreateAttempts..."
+        if ($subCreateAttempts -lt $subCreateMaxAttempts) {
+            Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $subCreateAttempts..."
             $subCreateSleep = [math]::Pow($subCreateAttempts,2)
 
             Start-Sleep -Seconds $subCreateSleep

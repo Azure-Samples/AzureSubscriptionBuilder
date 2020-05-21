@@ -58,24 +58,42 @@ if (!$blueprintObject) {
 }
 
 # Assign blueprint
-try {
-    Write-Verbose -Message "Applying blueprint assignment: $assignmentName to subscription: $subId"
-    $blueprintAssignment = New-AzBlueprintAssignment `
-    -Blueprint $blueprintObject `
-    -Name $assignmentName `
-    -Location $location `
-    -SubscriptionId $subId `
-    -Parameter $params
+$assignBlueprintSuccessful = $false
+$assignBlueprintAttempts = 1
+$assignBlueprintMaxAttempts = 10
 
-}
-catch {
-    Write-Error -Message $_.Exception
-    throw $_.Exception
+while (-not $assignBlueprintSuccessful) {
+    try {
+        $blueprintAssignment = New-AzBlueprintAssignment `
+        -Blueprint $blueprintObject `
+        -Name $assignmentName `
+        -Location $location `
+        -SubscriptionId $subId `
+        -Parameter $params
+    
+        Write-Verbose -Message "Applying blueprint assignment: $assignmentName to subscription: $subId"
 
+        $assignBlueprintSuccessful = $true
+    
+    }
+    catch {
+        if ($assignBlueprintAttempts -lt $assignBlueprintMaxAttempts) {
+            Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $assignBlueprintAttempts..."
+            $assignBlueprintSleep = [math]::Pow($assignBlueprintAttempts,2)
+
+            Start-Sleep -Seconds $assignBlueprintSleep
+
+            $assignBlueprintAttempts ++
+        }
+        else {
+            Write-Error -Message $_.Exception
+            throw $_.Exception
+            
+        }    
+    }
 }
 
 do {
-
     $provisioningState = $(Get-AzBlueprintAssignment `
     -Name $blueprintAssignment.Name `
     -SubscriptionId $subId).ProvisioningState
