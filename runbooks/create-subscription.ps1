@@ -56,9 +56,9 @@ while (-not $subCreateComplete) {
     catch {
         if ($_.Exception.Message.Contains("status code '429'")) {
             Write-Warning -Message "Experiencing rate limiting...retry attempt $subCreateAttempts..."
-            $sleep = [math]::Pow($subCreateAttempts,2)
+            $subCreateSleep = [math]::Pow($subCreateAttempts,2)
 
-            Start-Sleep -Seconds $sleep
+            Start-Sleep -Seconds $subCreateSleep
 
             $subCreateAttempts ++
             
@@ -88,25 +88,35 @@ catch {
 
 # Validate subscription has been successfully moved into management group
 $subMoveComplete = $false
+$subMoveValidateAttempts = 1
 
-do {
-    $mgmtGrpInfo = Get-AzManagementGroup `
-    -GroupName $mgmtGroupName `
-    -Expand
+while (-not $subMoveComplete) {
+    try {
+        $mgmtGrpInfo = Get-AzManagementGroup `
+        -GroupName $mgmtGroupName `
+        -Expand
+    
+        if ($mgmtGrpInfo.Children | Where-Object {$_.Name -eq $sub.Id }) {
+            $subMoveComplete = $true
+            Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
 
-    if ($mgmtGrpInfo.Children | Where-Object {$_.Name -eq $sub.Id }) {
-        $subMoveComplete = $true
+        }
+        else {
+            Write-Warning -Message "Subscription has not moved yet...retry validation attempt $subMoveValidateAttempts..."
+            $subMoveSleep = [math]::Pow($subMoveValidateAttempts,2)
 
+            Start-Sleep -Seconds $subMoveSleep
+
+            $subMoveValidateAttempts ++
+    
+        }
     }
-    else {
-        Start-Sleep -Seconds 5
+    catch {
+        Write-Error -Message $_.Exception
+        throw $_.Exception
 
     }
 }
-while (-not $subMoveComplete)
-
-Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
-
 
 # Output subscription id information in JSON format
 $objOut = [PSCustomObject]@{
