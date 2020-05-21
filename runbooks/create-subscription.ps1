@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 
 # Authenticate to azure
 $connectionName = "AutomationSP"
+
 try
 {
     # Get the automation account connection
@@ -37,19 +38,37 @@ $ea = Get-AzEnrollmentAccount
 Write-Verbose -Message "The Enrollment Account ID is $($ea.ObjectId)"
 
 # Create subscription
-try {
-    $sub = New-AzSubscription `
-    -OfferType $offerType `
-    -Name "$businessUnit-subscription" `
-    -EnrollmentAccountObjectId $ea.ObjectId
+$subCreateComplete = $false
+$subCreateAttempts = 1
 
-    Write-Verbose -Message "successfully created subscription: $($sub.Id)"
+while (-not $subCreateComplete) {
+    try {
+        $sub = New-AzSubscription `
+        -OfferType $offerType `
+        -Name "$businessUnit-subscription" `
+        -EnrollmentAccountObjectId $ea.ObjectId
     
-}
-catch {
-    Write-Error -Message $_.Exception
-    throw $_.Exception
+        Write-Verbose -Message "successfully created subscription: $($sub.Id)"
 
+        $subCreateComplete = $true
+        
+    }
+    catch {
+        if ($_.Exception.Message.Contains("status code '429'")) {
+            Write-Warning -Message "Experiencing rate limiting...retry attempt $subCreateAttempts..."
+            $subCreateSleep = [math]::Pow($subCreateAttempts,2)
+
+            Start-Sleep -Seconds $subCreateSleep
+
+            $subCreateAttempts ++
+            
+        }
+        else {
+            Write-Error -Message $_.Exception
+            throw $_.Exception
+            
+        }
+    }
 }
 
 # Move subscription into management group
@@ -58,13 +77,45 @@ try {
     -GroupName $mgmtGroupName `
     -SubscriptionId $sub.Id
 
-    Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
+    Write-Verbose -Message "moving subscription: $($sub.Id) into management group: $mgmtGroupName"
 
 }
 catch {
     Write-Error -Message $_.Exception
     throw $_.Exception
 
+}
+
+# Validate subscription has been successfully moved into management group
+$subMoveComplete = $false
+$subMoveValidateAttempts = 1
+
+while (-not $subMoveComplete) {
+    try {
+        $mgmtGrpInfo = Get-AzManagementGroup `
+        -GroupName $mgmtGroupName `
+        -Expand
+    
+        if ($mgmtGrpInfo.Children | Where-Object {$_.Name -eq $sub.Id }) {
+            $subMoveComplete = $true
+            Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
+
+        }
+        else {
+            Write-Warning -Message "Subscription has not moved yet...retry validation attempt $subMoveValidateAttempts..."
+            $subMoveSleep = [math]::Pow($subMoveValidateAttempts,2)
+
+            Start-Sleep -Seconds $subMoveSleep
+
+            $subMoveValidateAttempts ++
+    
+        }
+    }
+    catch {
+        Write-Error -Message $_.Exception
+        throw $_.Exception
+
+    }
 }
 
 # Output subscription id information in JSON format

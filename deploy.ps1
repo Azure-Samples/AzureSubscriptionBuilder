@@ -206,7 +206,7 @@ else {
         -Scope "/providers/Microsoft.Management/managementGroups/$rootManagementGroup" `
         -ErrorAction SilentlyContinue
 
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
 
     } while (!$mgmtGroupRole)
 }
@@ -232,7 +232,7 @@ else {
         -Scope "/providers/Microsoft.Billing/enrollmentAccounts/$eaObjectId" `
         -ErrorAction SilentlyContinue
 
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
 
     } while (!$eaRole)
 
