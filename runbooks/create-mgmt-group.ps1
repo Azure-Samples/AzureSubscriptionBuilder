@@ -6,6 +6,10 @@ $ErrorActionPreference = "Stop"
 
 # Authenticate to azure
 $connectionName = "AutomationSP"
+
+# Max retry attempts for API calls
+$maxRetryAttempts = 10
+
 try
 {
     # Get the automation account connection
@@ -37,21 +41,39 @@ $mgmtGroup = Get-AzManagementGroup `
     -ErrorAction SilentlyContinue
 
 if (!$mgmtGroup) {
-    try {
-        # Create management group
-        $mgmtGroup = New-AzManagementGroup `
-        -GroupName "$businessUnit-mgmtgrp" `
-        -DisplayName "$businessUnit-mgmtgrp" `
-        -ParentId "/providers/Microsoft.Management/managementGroups/rootMgmtGroup"
-        
-        Write-Verbose -Message "successfully created management group: $($mgmtGroup.Name)"
-    }
-    catch {
-        Write-Error -Message $_.Exception
-        throw $_.Exception
-    }
+    $mgmtGroupCreate = $false
+    $mgmtGroupCreateAttempts = 1
 
-} else {
+    while (-not $mgmtGroupCreate) {
+        try {
+            # Create management group
+            $mgmtGroup = New-AzManagementGroup `
+            -GroupName "$businessUnit-mgmtgrp" `
+            -DisplayName "$businessUnit-mgmtgrp" `
+            -ParentId "/providers/Microsoft.Management/managementGroups/rootMgmtGroup"
+            
+            Write-Verbose -Message "successfully created management group: $($mgmtGroup.Name)"
+
+            $mgmtGroupCreate = $true
+        }
+        catch {
+            If ($mgmtGroupCreateAttempts -lt $maxRetryAttempts) {
+                Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $mgmtGroupCreateAttempts..."
+                $mgmtGroupCreateSleep = [math]::Pow($mgmtGroupCreateAttempts,2)
+    
+                Start-Sleep -Seconds $mgmtGroupCreateSleep
+    
+                $mgmtGroupCreateAttempts ++
+            }
+            else {
+                Write-Error -Message $_.Exception
+                throw $_.Exception
+                
+            }
+        }
+    }
+} 
+else {
     Write-Warning -Message "$($mgmtGroup.DisplayName) already exists, proceeding to subscription creation..."
 
 }

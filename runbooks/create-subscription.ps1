@@ -7,6 +7,9 @@ $ErrorActionPreference = "Stop"
 # Authenticate to azure
 $connectionName = "AutomationSP"
 
+# Max retry attempts for API calls
+$maxRetryAttempts = 10
+
 try
 {
     # Get the automation account connection
@@ -40,7 +43,6 @@ Write-Verbose -Message "The Enrollment Account ID is $($ea.ObjectId)"
 # Create subscription
 $subCreateComplete = $false
 $subCreateAttempts = 1
-$subCreateMaxAttempts = 10
 
 while (-not $subCreateComplete) {
     try {
@@ -55,7 +57,7 @@ while (-not $subCreateComplete) {
         
     }
     catch {
-        if ($subCreateAttempts -lt $subCreateMaxAttempts) {
+        if ($subCreateAttempts -lt $maxRetryAttempts) {
             Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $subCreateAttempts..."
             $subCreateSleep = [math]::Pow($subCreateAttempts,2)
 
@@ -73,18 +75,35 @@ while (-not $subCreateComplete) {
 }
 
 # Move subscription into management group
-try {
-    New-AzManagementGroupSubscription `
-    -GroupName $mgmtGroupName `
-    -SubscriptionId $sub.Id
+$subMoveExecute = $false
+$subMoveExecuteAttempts = 1
 
-    Write-Verbose -Message "moving subscription: $($sub.Id) into management group: $mgmtGroupName"
+while (-not $subMoveExecute) {
+    try {
+        New-AzManagementGroupSubscription `
+        -GroupName $mgmtGroupName `
+        -SubscriptionId $sub.Id
+    
+        Write-Verbose -Message "moving subscription: $($sub.Id) into management group: $mgmtGroupName"
 
-}
-catch {
-    Write-Error -Message $_.Exception
-    throw $_.Exception
+        $subMoveExecute = $true
+    
+    }
+    catch {
+        if ($subMoveExecuteAttempts -lt $maxRetryAttempts) {
+            Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $subCreateAttempts..."
+            $subMoveExecuteSleep = [math]::Pow($subMoveExecuteAttempts,2)
 
+            Start-Sleep -Seconds $subMoveExecuteSleep
+
+            $subMoveExecuteAttempts ++
+        }
+        else {
+            Write-Error -Message $_.Exception
+            throw $_.Exception
+        
+        }
+    }
 }
 
 # Validate subscription has been successfully moved into management group
@@ -98,15 +117,16 @@ while (-not $subMoveComplete) {
         -Expand
     
         if ($mgmtGrpInfo.Children | Where-Object {$_.Name -eq $sub.Id }) {
-            $subMoveComplete = $true
             Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
+
+            $subMoveComplete = $true
 
         }
         else {
             Write-Warning -Message "Subscription has not moved yet...retry validation attempt $subMoveValidateAttempts..."
-            $subMoveSleep = [math]::Pow($subMoveValidateAttempts,2)
+            $subMoveValidateSleep = [math]::Pow($subMoveValidateAttempts,2)
 
-            Start-Sleep -Seconds $subMoveSleep
+            Start-Sleep -Seconds $subMoveValidateSleep
 
             $subMoveValidateAttempts ++
     

@@ -6,6 +6,10 @@ $ErrorActionPreference = "Stop"
 
 # Authenticate to azure
 $connectionName = "AutomationSP"
+
+# Max retry attempts for API calls
+$maxRetryAttempts = 10
+
 try
 {
     # Get the automation account connection
@@ -60,7 +64,6 @@ if (!$blueprintObject) {
 # Assign blueprint
 $assignBlueprintSuccessful = $false
 $assignBlueprintAttempts = 1
-$assignBlueprintMaxAttempts = 10
 
 while (-not $assignBlueprintSuccessful) {
     try {
@@ -77,7 +80,7 @@ while (-not $assignBlueprintSuccessful) {
     
     }
     catch {
-        if ($assignBlueprintAttempts -lt $assignBlueprintMaxAttempts) {
+        if ($assignBlueprintAttempts -lt $maxRetryAttempts) {
             Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $assignBlueprintAttempts..."
             $assignBlueprintSleep = [math]::Pow($assignBlueprintAttempts,2)
 
@@ -88,7 +91,7 @@ while (-not $assignBlueprintSuccessful) {
         else {
             Write-Error -Message $_.Exception
             throw $_.Exception
-            
+
         }    
     }
 }
