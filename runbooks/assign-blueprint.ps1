@@ -101,22 +101,21 @@ function assignBlueprint {
 
 assignBlueprint $blueprintObject $assignmentName $location $subId $params $maxRetryAttempts
 
-# retrieve blueprint assignment provisioning state
-try {
-    $provisioningState = $(Get-AzBlueprintAssignment `
-    -Name $blueprintAssignment.Name `
-    -SubscriptionId $subId).ProvisioningState
-}
-catch {
-    Write-Error -Message $_.Exception
-    throw $_.Exception
-}
-
 #validate blueprint assignment
 $assignBlueprintValidate = $false
 $assignBlueprintValidateAttempts = 1
 
 while (-not $assignBlueprintValidate) {
+    try {
+        $provisioningState = $(Get-AzBlueprintAssignment `
+        -Name $blueprintAssignment.Name `
+        -SubscriptionId $subId).ProvisioningState
+    }
+    catch {
+        Write-Error -Message $_.Exception
+        throw $_.Exception
+    }
+
     if ($provisioningState -eq "Failed") {
         if ($assignBlueprintValidateAttempts -le $maxRetryAttempts) {
             Write-Warning -Message "Blueprint assignment failed after attempt $assignBlueprintValidateAttempts..."
