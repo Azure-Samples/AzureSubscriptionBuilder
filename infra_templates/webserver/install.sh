@@ -4,8 +4,12 @@ sudo apt-get -y update
 # install LAMP Server (Apache, MySQL, and PHP)
 sudo apt -y install lamp-server^
 
-# Write some html
-sudo echo \<center\>\<h1\>My Demo App\</h1\>\<br/\>\</center\> > /var/www/html/demo.html
+# Grant rights to /var/www
+sudo chown -R $USER:$USER /var/www
+
+# Get Subscription Builder Front End and Error page 
+sudo wget https://bootstrapstgacct.blob.core.windows.net/webserver/webForm.html -O /var/www/html/index.html
+sudo wget https://bootstrapstgacct.blob.core.windows.net/webserver/errorPage.html -O /var/www/html/errorPage.html
 
 # Restart Apache
-service apache2 restart 
+sudo service apache2 restart 
