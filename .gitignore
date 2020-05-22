@@ -1,6 +1,7 @@
 ## Azure Subscription Builder specific .gitignore requirements
 .DS_Store
 infra_templates/logicApp/LogicAppDynamicParams.json
+infra_templates/webserver/webserverDynamicParams.json
 runbooks/*-dynamic.ps1
 webFrontEnd/deployments/webFormDynamic.html
 *.log
