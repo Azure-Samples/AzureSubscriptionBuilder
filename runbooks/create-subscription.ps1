@@ -57,8 +57,8 @@ while (-not $subCreateComplete) {
         
     }
     catch {
-        if ($subCreateAttempts -lt $maxRetryAttempts) {
-            Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $subCreateAttempts..."
+        if ($subCreateAttempts -le $maxRetryAttempts) {
+            Write-Warning -Message "We've hit an exception: $($_.Exception.Message) after attempt $subCreateAttempts..."
             $subCreateSleep = [math]::Pow($subCreateAttempts,2)
 
             Start-Sleep -Seconds $subCreateSleep
@@ -67,8 +67,9 @@ while (-not $subCreateComplete) {
             
         }
         else {
-            Write-Error -Message $_.Exception
-            throw $_.Exception
+            $errorMessage = "Unable to create subscription due to exception: $($_.Exception.Message)"
+            Write-Error -Message $errorMessage
+            throw $errorMessage
             
         }
     }
@@ -90,8 +91,8 @@ while (-not $subMoveExecute) {
     
     }
     catch {
-        if ($subMoveExecuteAttempts -lt $maxRetryAttempts) {
-            Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $subCreateAttempts..."
+        if ($subMoveExecuteAttempts -le $maxRetryAttempts) {
+            Write-Warning -Message "We've hit an exception: $($_.Exception.Message) after attempt $subCreateAttempts..."
             $subMoveExecuteSleep = [math]::Pow($subMoveExecuteAttempts,2)
 
             Start-Sleep -Seconds $subMoveExecuteSleep
@@ -99,8 +100,9 @@ while (-not $subMoveExecute) {
             $subMoveExecuteAttempts ++
         }
         else {
-            Write-Error -Message $_.Exception
-            throw $_.Exception
+            $errorMessage = "Unable to execute subscription: $($sub.Id) move into management group: $mgmtGroupName due to exception: $($_.Exception.Message)"
+            Write-Error -Message $errorMessage
+            throw $errorMessage
         
         }
     }
@@ -112,25 +114,34 @@ $subMoveValidateAttempts = 1
 
 while (-not $subMoveComplete) {
     try {
-        $mgmtGrpInfo = Get-AzManagementGroup `
-        -GroupName $mgmtGroupName `
-        -Expand
+        if ($subMoveValidateAttempts -le $maxRetryAttempts) {
+            $mgmtGrpInfo = Get-AzManagementGroup `
+            -GroupName $mgmtGroupName `
+            -Expand
+        
+            if ($mgmtGrpInfo.Children | Where-Object {$_.Name -eq $sub.Id }) {
+                Write-Verbose -Message "successfully validated subscription: $($sub.Id) has moved into management group: $mgmtGroupName"
     
-        if ($mgmtGrpInfo.Children | Where-Object {$_.Name -eq $sub.Id }) {
-            Write-Verbose -Message "successfully moved subscription: $($sub.Id) into management group: $mgmtGroupName"
-
-            $subMoveComplete = $true
-
+                $subMoveComplete = $true
+    
+            }
+            else {
+                Write-Warning -Message "Subscription has not moved yet after validation attempt $subMoveValidateAttempts..."
+                $subMoveValidateSleep = [math]::Pow($subMoveValidateAttempts,2)
+    
+                Start-Sleep -Seconds $subMoveValidateSleep
+    
+                $subMoveValidateAttempts ++
+        
+            }
         }
         else {
-            Write-Warning -Message "Subscription has not moved yet...retry validation attempt $subMoveValidateAttempts..."
-            $subMoveValidateSleep = [math]::Pow($subMoveValidateAttempts,2)
+            $errorMessage = "Unable to validate subscription:$($sub.Id) move into management group: $mgmtGroupName"
+            Write-Error -Message $errorMessage
+            Throw $errorMessage
 
-            Start-Sleep -Seconds $subMoveValidateSleep
-
-            $subMoveValidateAttempts ++
-    
         }
+
     }
     catch {
         Write-Error -Message $_.Exception

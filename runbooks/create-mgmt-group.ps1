@@ -57,8 +57,8 @@ if (!$mgmtGroup) {
             $mgmtGroupCreate = $true
         }
         catch {
-            If ($mgmtGroupCreateAttempts -lt $maxRetryAttempts) {
-                Write-Warning -Message "We've hit an exception: $($_.Exception.Message)...retry attempt $mgmtGroupCreateAttempts..."
+            If ($mgmtGroupCreateAttempts -le $maxRetryAttempts) {
+                Write-Warning -Message "We've hit an exception: $($_.Exception.Message) after attempt $mgmtGroupCreateAttempts..."
                 $mgmtGroupCreateSleep = [math]::Pow($mgmtGroupCreateAttempts,2)
     
                 Start-Sleep -Seconds $mgmtGroupCreateSleep
@@ -66,9 +66,10 @@ if (!$mgmtGroup) {
                 $mgmtGroupCreateAttempts ++
             }
             else {
-                Write-Error -Message $_.Exception
-                throw $_.Exception
-                
+                $errorMessage = "Unable to create management group: $businessUnit-mgmtgrp due to exception: $($_.Exception.Message)"
+                Write-Error -Message $errorMessage
+                throw $errorMessage
+
             }
         }
     }
