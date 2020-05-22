@@ -12,4 +12,4 @@ sudo wget https://bootstrapstgacct.blob.core.windows.net/webserver/webForm.html 
 sudo wget https://bootstrapstgacct.blob.core.windows.net/webserver/errorPage.html -O /var/www/html/errorPage.html
 
 # Restart Apache
-sudo service apache2 restart 
+sudo service apache2 restart
