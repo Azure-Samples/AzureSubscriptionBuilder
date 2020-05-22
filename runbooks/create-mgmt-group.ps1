@@ -6,6 +6,10 @@ $ErrorActionPreference = "Stop"
 
 # Authenticate to azure
 $connectionName = "AutomationSP"
+
+# Max retry attempts for API calls
+$maxRetryAttempts = 10
+
 try
 {
     # Get the automation account connection
@@ -37,17 +41,42 @@ $mgmtGroup = Get-AzManagementGroup `
     -ErrorAction SilentlyContinue
 
 if (!$mgmtGroup) {
-    # Create management group
-    $mgmtGroup = New-AzManagementGroup `
-    -GroupName "$businessUnit-mgmtgrp" `
-    -DisplayName "$businessUnit-mgmtgrp" `
-    -ParentId "/providers/Microsoft.Management/managementGroups/rootMgmtGroup"
-    
-    Write-Verbose -Message "successfully created management group: $($mgmtGroup.Name)"
+    $mgmtGroupCreate = $false
+    $mgmtGroupCreateAttempts = 1
 
-} else {
+    while (-not $mgmtGroupCreate) {
+        try {
+            # Create management group
+            $mgmtGroup = New-AzManagementGroup `
+            -GroupName "$businessUnit-mgmtgrp" `
+            -DisplayName "$businessUnit-mgmtgrp" `
+            -ParentId "/providers/Microsoft.Management/managementGroups/rootMgmtGroup"
+            
+            Write-Verbose -Message "successfully created management group: $($mgmtGroup.Name)"
+
+            $mgmtGroupCreate = $true
+        }
+        catch {
+            If ($mgmtGroupCreateAttempts -le $maxRetryAttempts) {
+                Write-Warning -Message "We've hit an exception: $($_.Exception.Message) after attempt $mgmtGroupCreateAttempts..."
+                $mgmtGroupCreateSleep = [math]::Pow($mgmtGroupCreateAttempts,2)
+    
+                Start-Sleep -Seconds $mgmtGroupCreateSleep
+    
+                $mgmtGroupCreateAttempts ++
+            }
+            else {
+                $errorMessage = "Unable to create management group: $businessUnit-mgmtgrp due to exception: $($_.Exception.Message)"
+                Write-Error -Message $errorMessage
+                throw $errorMessage
+
+            }
+        }
+    }
+} 
+else {
     Write-Warning -Message "$($mgmtGroup.DisplayName) already exists, proceeding to subscription creation..."
-    Write-Verbose -Message "$($mgmtGroup.DisplayName) already exists, proceeding to subscription creation..."
+
 }
 
 # Output management group and subscription id information in JSON format

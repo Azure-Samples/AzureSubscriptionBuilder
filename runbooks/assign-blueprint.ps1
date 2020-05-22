@@ -6,6 +6,10 @@ $ErrorActionPreference = "Stop"
 
 # Authenticate to azure
 $connectionName = "AutomationSP"
+
+# Max retry attempts for API calls
+$maxRetryAttempts = 10
+
 try
 {
     # Get the automation account connection
@@ -57,35 +61,86 @@ if (!$blueprintObject) {
 
 }
 
-# Assign blueprint
-try {
-    Write-Verbose -Message "Applying blueprint assignment: $assignmentName to subscription: $subId"
-    $blueprintAssignment = New-AzBlueprintAssignment `
-    -Blueprint $blueprintObject `
-    -Name $assignmentName `
-    -Location $location `
-    -SubscriptionId $subId `
-    -Parameter $params
-
-}
-catch {
-    Write-Error -Message $_.Exception
-    throw $_.Exception
-
-}
-
-do {
-
-    $provisioningState = $(Get-AzBlueprintAssignment `
-    -Name $blueprintAssignment.Name `
-    -SubscriptionId $subId).ProvisioningState
-
-    Start-Sleep -Seconds 5
+# Execute blueprint assignment
+function assignBlueprint {
+    $assignBlueprintExecute = $false
+    $assignBlueprintExecuteAttempts = 1
     
+    while (-not $assignBlueprintExecute) {
+        try {
+            $script:blueprintAssignment = New-AzBlueprintAssignment `
+            -Blueprint $blueprintObject `
+            -Name $assignmentName `
+            -Location $location `
+            -SubscriptionId $subId `
+            -Parameter $params
+        
+            Write-Verbose -Message "Assigning blueprint assignment: $assignmentName to subscription: $subId"
+    
+            $assignBlueprintExecute = $true
+        
+        }
+        catch {
+            if ($assignBlueprintExecuteAttempts -le $maxRetryAttempts) {
+                Write-Warning -Message "We've hit an exception: $($_.Exception.Message) after attempt $assignBlueprintExecuteAttempts..."
+                $assignBlueprintExecuteSleep = [math]::Pow($assignBlueprintExecuteAttempts,2)
+    
+                Start-Sleep -Seconds $assignBlueprintExecuteSleep
+    
+                $assignBlueprintExecuteAttempts ++
+            }
+            else {
+                $errorMessage = "Unable to execute blueprint assignment due to exception: $($_.Exception.Message)"
+                Write-Error -Message $errorMessage
+                throw $errorMessage
+    
+            }    
+        }
+    }
 }
-while ($provisioningState -ne "Succeeded")
 
-Write-Verbose -Message "Blueprint assignment: $($blueprintAssignment.Name) has been applied to subscription: $subId"
+assignBlueprint $blueprintObject $assignmentName $location $subId $params $maxRetryAttempts
+
+#validate blueprint assignment
+$assignBlueprintValidate = $false
+$assignBlueprintValidateAttempts = 1
+
+while (-not $assignBlueprintValidate) {
+    try {
+        $provisioningState = $(Get-AzBlueprintAssignment `
+        -Name $blueprintAssignment.Name `
+        -SubscriptionId $subId).ProvisioningState
+    }
+    catch {
+        Write-Error -Message $_.Exception
+        throw $_.Exception
+    }
+
+    if ($provisioningState -eq "Failed") {
+        if ($assignBlueprintValidateAttempts -le $maxRetryAttempts) {
+            Write-Warning -Message "Blueprint assignment failed after attempt $assignBlueprintValidateAttempts..."
+            assignBlueprint $blueprintObject $assignmentName $location $subId $params $maxRetryAttempts
+
+            $assignBlueprintValidateAttempts ++
+
+        }
+        else {
+            $errorMessage = "Unable to assign Blueprint after $assignBlueprintValidateAttempts attempts"
+            Write-Error -Message $errorMessage
+            throw $errorMessage
+
+        }
+    }
+    elseif ($provisioningState -eq "Succeeded") {
+        Write-Verbose -Message "Blueprint assignment: $($blueprintAssignment.Name) has been assigned to subscription: $subId successfully"
+        $assignBlueprintValidate = $true
+
+    }
+    else {
+        Start-Sleep -Seconds 10
+
+    }
+}
 
 $objOut = [PSCustomObject]@{
     
