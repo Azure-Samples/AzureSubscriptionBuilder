@@ -194,17 +194,17 @@ If you were to test with cURL or Postman, An example payload would look like the
 ```
 **NOTE: IF YOU CHOOSE NOT TO DEPLOY ONE OF THE SUBSCRIPTION OFFER TYPES (DEV/TEST OR PROD) _YOU NEED TO ENTER 0 FOR THE VALUE_**
 
-### Optional web front end - hosted as static website in a blob container
+### Optional Web Server - hosted on Ubuntu VM
 
 We realize that some Subscription Builder users will want to bring their own front end trigger, allowing for endless customization and integrations. For those individuals, please continue on to the next section which covers the expected format for the body of the HTTP POST API call. 
 
-For the individuals that are looking for a simpler solution we decided to include the option to create a front end trigger as part of the Subscription Builder deployment process. When running the `deploy.ps1` script, the user is asked if they would like to also deploy the optional front end (default is 'No'). If the user chooses '(Y)es', the Subscription Builder Website will be deployed and configured as part of the infrastructure deployment. If the user chooses '(N)o', then the deployment continues and no front end is configured.  The optional front end leverages the static website feature available with Azure Storage Accounts, documentation found [here](https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-static-website). The Subscription Builder website consists of 3 files, those being:
+For the individuals that are looking for a simpler solution we decided to include the option to create a web based front end trigger as part of the Subscription Builder deployment process. When running the `deploy.ps1` script, the user is asked if they would like to also deploy the optional Web Server (default is 'No'). If the user chooses '(Y)es', the Subscription Builder Web Server will be deployed and configured as part of the infrastructure deployment into it's own resource group. If the user chooses '(N)o', then the deployment continues and no front end is configured.  The optional front end is built on an Ubuntu VM LAMP Stack using the `installDynamic.sh` script orchestrated by the [Linux Custom Script Extension](https://docs.microsoft.com/en-us/azure/virtual-machines/extensions/custom-script-linux). The Subscription Builder website consists of 3 files, those being:
 
 - `webFormDynamic.html`
 - `errorPage.html`
 - `spring-cloud.jpg`
 
-We dynamically generate the `webFormDynamic.html` file, connect the HTTP Trigger to the Logic App URL, and upload all 3 files to the Storage Account. This front end then presents a web page for users to input the required variables to run the Subscription Builder service. The user then will click on the `Submit` button, and they will be asked to verify their selections. If the user wants to continue, they will click on the `BUILD` button at which time the site will POST the required JSON payload to the Logic App endpoint.
+We dynamically generate the `webFormDynamic.html` file and the `installDynamic.sh`, connect the HTTP Trigger to the Logic App URL, and upload all 3 files to the Storage Account. This web server presents a form for users to input the variables required to run the Subscription Builder service. The user then will click on the `Submit` button, and they will be asked to verify their selections. If the user would like to continue, they will click on the `BUILD` button at which time the server will POST the required JSON payload to the Logic App endpoint.
 
 #### Step By Step Instructions for Front End
 
@@ -251,8 +251,6 @@ The included deploy script, `deploy.ps1`, will build the following infrastructur
     - Storing Service Principal Secret
 - **Azure Storage Account**
     - Blob container for Automation Runbooks
-    - You also have the option to deploy a pre-configured static website front end
-        - _detailed information covered in a dedicated section below_
 - **Upload Repo Artifacts** 
     - Upload Runbooks to Azure Storage Account
     - Import and Publish the Blueprint from this repo if it is not already present in user defined root management group
@@ -273,6 +271,11 @@ The included deploy script, `deploy.ps1`, will build the following infrastructur
         - apply-blueprint
     -  Authenticated using the Service Principal in the deploy script
     -  Build details logged to CosmosDB for record keeping and auditing
+
+- **OPTIONAL - Ubuntu Web Server**
+    - User has the option to deploy an Ubuntu web server running a LAMP (Linux, Apache, MySQL, and PHP) stack.
+    - Deployed via ARM template
+    - Configured via Linux Custom Script Extension 
 
 ### Architecture and workflow
 

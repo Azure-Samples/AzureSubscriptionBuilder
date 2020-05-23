@@ -8,8 +8,8 @@ sudo apt -y install lamp-server^
 sudo chown -R $USER:$USER /var/www
 
 # Get Subscription Builder Front End and Error page 
-sudo wget https://bootstrapstgacct.blob.core.windows.net/webserver/webForm.html -O /var/www/html/index.html
-sudo wget https://bootstrapstgacct.blob.core.windows.net/webserver/errorPage.html -O /var/www/html/errorPage.html
+sudo wget wForm -O /var/www/html/index.html
+sudo wget ePage -O /var/www/html/errorPage.html
 
 # Restart Apache
 sudo service apache2 restart
