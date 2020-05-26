@@ -11,7 +11,7 @@ $logFile = "./teardown_$(get-date -format `"yyyyMMddhhmmsstt`").log"
 # Set preference variables
 $ErrorActionPreference = "Stop"
 
-# Obtain resource group object
+# Obtain subbuilder resource group object
 $rg = Get-AzResourceGroup -Name "$Name-rg" -ErrorAction SilentlyContinue
 if ($rg) {
     try {
@@ -23,6 +23,26 @@ if ($rg) {
     catch {
         $_ | Out-File -FilePath $logFile -Append
         Write-Host "ERROR: Deletion of Resouce Group: $Name-rg has failed due to an exception, see $logFile for detailed information!" -ForegroundColor red
+        exit 
+
+    }
+} else {
+    Write-Warning -Message "Resource Group, $Name-rg, no longer exists"
+
+}
+
+# Obtain webserver resource group object
+$webrg = Get-AzResourceGroup -Name "$Name-webserver-rg" -ErrorAction SilentlyContinue
+if ($webrg) {
+    try {
+        # Delete resource group
+        Write-Host "INFO: Deleting Resource Group: $Name-webserver-rg" -ForegroundColor green        
+        $webrg | Remove-AzResourceGroup -Force
+
+    }
+    catch {
+        $_ | Out-File -FilePath $logFile -Append
+        Write-Host "ERROR: Deletion of Resouce Group: $Name-webserver-rg has failed due to an exception, see $logFile for detailed information!" -ForegroundColor red
         exit 
 
     }

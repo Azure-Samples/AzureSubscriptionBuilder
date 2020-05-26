@@ -1,7 +1,9 @@
 {
-  "Name": "subbuilder",
-  "location": "westus2",
+  "Name": "asgard",
+  "location": "eastus2",
   "rootManagementGroup": "GlobalRootGroup",
-  "pfxCertPath": "C:\\temp\\subbuilder.pfx",
-  "certPass": "passw0rd!"
+  "pfxCertPath": "",
+  "certPass": "",
+  "webserverSshKey":"",
+  "webserverAdminCidr": ""
 }

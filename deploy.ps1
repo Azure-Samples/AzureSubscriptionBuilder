@@ -10,6 +10,8 @@ $location = $parameters.location
 $rootManagementGroup = $parameters.rootManagementGroup
 $Name = $parameters.Name.ToLower()
 $pfxCertPath = $parameters.pfxCertPath
+$webserverSshKey = $parameters.webserverSshKey
+$webserverAdminCidr = $parameters.webserverAdminCidr
 $certPass = ConvertTo-SecureString $parameters.certPass -AsPlainText -Force
 $tenantId = (Get-AzContext).Tenant.Id
 $subId = (Get-AzContext).Subscription.Id
@@ -108,15 +110,15 @@ else {
 # Offer optional Web Front end
 Write-Host "======== Front End Selection ========"
 
-Write-Host "Would you like to deploy this package with the included optional Web Front End? (Default is No)"
+Write-Host "Would you like to deploy this package with the included optional Web Server? (Default is No)"
 
 try {
     [ValidateSet('Y', 'N')] $selection = Read-Host " ( Y / N ) "
     switch ($selection)
     {
-        Y {Write-Host "INFO: You chose 'Yes', included web front end will be deployed" -ForegroundColor Green; $webFrontEnd = $true}
-        N {Write-Warning "You chose 'No', included web front end will not be deployed"; $webFrontEnd = $false}
-        Default {Write-Warning "No selection was made, skipping front end deployment.."; $webFrontEnd = $false}
+        Y {Write-Host "INFO: You chose 'Yes', included Web Server will be deployed" -ForegroundColor Green; $webserver = $true}
+        N {Write-Warning "You chose 'No', included webserver will not be deployed"; $webserver = $false}
+        Default {Write-Warning "No selection was made, skipping webserver deployment.."; $webserver = $false}
     }
 }
 catch {
@@ -491,7 +493,20 @@ catch {
     exit
 }
 
-if ($webFrontEnd -eq $true) {
+if ($webserver -eq $true) {
+    # Create webserver resource group if it doesn't already exist
+    $webrgcheck = Get-AzResourceGroup -Name "$Name-webserver-rg" -ErrorAction SilentlyContinue
+    if (!$webrgcheck) {
+        Write-Host "INFO: Creating new resource group: $Name-webserver-rg" -ForegroundColor green
+        Write-Verbose -Message "Creating new resource group: $Name-webserver-rg"
+        New-AzResourceGroup -Name "$Name-webserver-rg" -Location $location
+
+    }
+    else {
+        Write-Warning -Message "Resource Group: $Name-webserver-rg already exists. Continuing with deployment..."
+
+    }
+
     try {
         # Enable Static Website and upload contents if selected
         # Gather Logic App endpoint and edit/create the "webFormDynamic.html" for website content
@@ -503,7 +518,9 @@ if ($webFrontEnd -eq $true) {
         $test = $false
 
         # Replace 'LogicAppURL' with actual Logic App endpoint.
-        get-content ./webFrontEnd/webForm.html |
+        Write-Host "INFO: Dynamically updating webForm.html" -ForegroundColor green
+        Write-Verbose -Message "Dynamically updating webForm.html"
+        get-content ./webserver/webForm.html |
         ForEach-Object {
             if ($_ -match $test_regex){
                 $test = $true
@@ -516,7 +533,7 @@ if ($webFrontEnd -eq $true) {
                 }
             else {$new_html += $_}
         }
-        $new_html | set-content ./webFrontEnd/deployments/webFormDynamic.html
+        $new_html | set-content ./webserver/deployments/webFormDynamic.html
     }
     catch {
         $_ | Out-File -FilePath $logFile -Append
@@ -526,16 +543,32 @@ if ($webFrontEnd -eq $true) {
     }
 
     try {
-        Write-Host "INFO: Enabling static website frontend in Storage Account: $($storageAccount.StorageAccountName)" -ForegroundColor Green
-        Write-Verbose -Message "Enabling static website frontend in Storage Account: $($storageAccount.StorageAccountName)"
-        Enable-AzStorageStaticWebsite `
-        -Context $storageAccount.Context `
-        -IndexDocument webFormDynamic.html `
-        -ErrorDocument404Path errorPage.html
+        Write-Host "INFO: Dynamically updating boostrap script install.sh" -ForegroundColor green
+        Write-Verbose -Message "Dynamically updating bootstrap script"
+        $webFormUri = "$($baseStorageUrl)/webserver/webFormDynamic.html"
+        $errorPageUri = "$($baseStorageUrl)/webserver/errorPage.html"
+
+        $findWeb = [regex]::escape('wForm')
+        $findError = [regex]::escape('ePage')
+            
+        $newInstall = @()
+        Get-Content ./webserver/install.sh | `
+        ForEach-Object {
+            if ($_ -match $findWeb) {
+                $newInstall += ($_ -replace $findWeb, $webFormUri)
+            }
+            elseif ($_ -match $findError) {
+                $newInstall += ($_ -replace $findError, $errorPageUri)
+            }
+            else {
+                $newInstall += $_
+            }
+        }
+        $newInstall | set-content "./webserver/deployments/installDynamic.sh"
     }
     catch {
         $_ | Out-File -FilePath $logFile -Append
-        Write-Host "ERROR: Unable to enable static website frontend in Storage Account due to an exception, see $logFile for detailed information!" -ForegroundColor red
+        Write-Host "ERROR: Unable to dynamically update Bootstrap Script due to an exception, see $logFile for detailed information!" -ForegroundColor red
         exit
 
     }
@@ -545,29 +578,56 @@ if ($webFrontEnd -eq $true) {
         Write-Verbose -Message "Uploading static website content to Storage Account: $($storageAccount.StorageAccountName)"
         Get-ChildItem `
         -File `
-        -Path ./webFrontEnd/deployments/ | `
+        -Path ./webserver/deployments/* | `
         ForEach-Object {
             Set-AzStorageBlobContent `
-            -Container `$web `
+            -Container "sub-builder" `
             -File "$_" `
-            -Blob "$($_.Name)" `
+            -Blob "webserver/$($_.Name)" `
             -Context $storageAccount.Context `
             -Properties @{"ContentType" = "text/html"}
         }
 
         Set-AzStorageBlobContent `
-        -Container `$web `
+        -Container "sub-builder" `
         -File "./images/website/spring-cloud.jpg" `
-        -Blob "spring-cloud.jpg" `
+        -Blob "webserver/spring-cloud.jpg" `
         -Context $storageAccount.Context `
         -Properties @{"ContentType" = "image/jpeg"}
-
-        Write-Host "INFO: Static Website URL is: $($storageAccount.PrimaryEndpoints.Web)" -ForegroundColor green
 
     }
     catch {
         $_ | Out-File -FilePath $logFile -Append
         Write-Host "ERROR: Unable to upload static website content to Storage Account due to an exception, see $logFile for detailed information!" -ForegroundColor red
+        exit
+    }
+
+    try {
+        Write-Host "INFO: Deploying ARM Template to create Webserver and associated resources." -ForegroundColor green
+        Write-Verbose -Message "Building webserver parameter file..."
+        $webParamObj = (Get-Content -Path ./infra_templates/webserver/webserverParams.json | ConvertFrom-Json)
+        $webParams = $webParamObj.parameters
+        $webParams.adminUsername.value = $Name
+        $webParams.dnsNameForPublicIP.value = "asbwebserver"
+        $webParams.ubuntuOSVersion.value = "18.04-LTS"
+        $webParams.authenticationType.value = "sshPublicKey"
+        $webParams.adminPasswordOrKey.value = $webserverSshKey
+        $webParams.artifactsLocation.value = "$($baseStorageUrl)/webserver/"
+        $webParams.webserverAdminCidr.value = $webserverAdminCidr
+        $webParamObj | ConvertTo-Json -Depth 100 | Out-File -FilePath "./infra_templates/webserver/webserverDynamicParams.json" -Force
+
+        # Deploy ARM template to create webserver
+        New-AzResourceGroupDeployment `
+        -ResourceGroupName "$($Name)-webserver-rg" `
+        -TemplateFile ./infra_templates/webserver/webserver.json `
+        -TemplateParameterFile ./infra_templates/webserver/webserverDynamicParams.json
+
+        $fqdn = Get-AzPublicIpAddress -ResourceGroupName "$($Name)-webserver-rg"
+        Write-Host "INFO: Azure Subscription Builder can now be accessed via this URL: $($fqdn.DnsSettings.Fqdn)" -ForegroundColor green
+    }
+    catch {
+        $_ | Out-File -FilePath $logFile -Append
+        Write-Host "ERROR: Unable to deploy webserver ARM Template due to an exception, see $logFile for detailed information!" -ForegroundColor red
         exit
     }
 } 
