@@ -1,7 +1,7 @@
 {
-  "Name": "asgard",
-  "location": "eastus2",
-  "rootManagementGroup": "GlobalRootGroup",
+  "Name": "",
+  "location": "",
+  "rootManagementGroup": "",
   "pfxCertPath": "",
   "certPass": "",
   "webserverSshKey":"",

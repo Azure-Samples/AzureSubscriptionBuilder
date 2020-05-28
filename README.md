@@ -13,6 +13,7 @@ products:
 - azure-powershell
 - azure-resource-manager-templates
 - azure-blueprints
+- azure-virtual-machines
 description: "The Azure Subscription Builder project allows an Enterprise Account owner to quickly deploy secure, policy compliant, Azure Subscriptions"
 ---
 
@@ -36,7 +37,7 @@ The Azure Subscription Builder project allows an Enterprise Account owner to qui
 | `images/`          | Architecture design, example screenshots, and images for optional web frontend.|
 | `infra_templates/` | ARM templates for infrastructure deployment.|
 | `runbooks/`        | Azure Automation Runbooks leveraged by the tool.|
-| `WebFrontEnd/`     | Optional web frontend.                     |
+| `Webserver/`     | Optional webserver frontend.                     |
 | `deploy.ps1`      | PowerShell script to deploy tool.          |
 | `deployParams.json`| Deployment parameters used by `deploy.ps1` and `teardown.ps1`.          |
 | `teardown.ps1`    | PowerShell script to decommission the tool. Makes testing and experimentation easy.|
@@ -136,7 +137,9 @@ Fill in the key value pairs and save before running `deploy.ps1`.
     "location": "westus2",
     "rootManagementGroup": "GlobalRootGroup",
     "pfxCertPath": "/Users/jdoe/temp/test.pfx",
-    "certPass": "passw0rd!"
+    "certPass": "passw0rd!",
+    "webserverSshKey": "ssh-rsa XjY586.......",
+    "webserverAdminCidr": "50.1.1.1/32"
 }   
 ```
 
@@ -274,7 +277,7 @@ The included deploy script, `deploy.ps1`, will build the following infrastructur
 
 - **OPTIONAL - Ubuntu Web Server**
     - User has the option to deploy an Ubuntu web server running a LAMP (Linux, Apache, MySQL, and PHP) stack.
-    - Deployed via ARM template
+    - Deployed via ARM template into it's own resource group
     - Configured via Linux Custom Script Extension 
 
 ### Architecture and workflow
