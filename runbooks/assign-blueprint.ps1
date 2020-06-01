@@ -39,9 +39,10 @@ catch {
 $params = @{ location = $location }
 Write-Verbose -Message "params = $params"
 
-# Get timestamp for blueprint assignment
+# Get GUID and timestamp for blueprint assignment
+$guid = (New-Guid).Guid
 $date = Get-Date -Format "yyyyMMddTHHmmss"
-$assignmentName = "$businessUnit-AssignBlueprint-$date"
+$assignmentName = "$businessUnit-$date-$guid"
 Write-Verbose -Message "Assignment Name = $assignmentName"
 
 # Get blueprint object
