@@ -61,12 +61,58 @@ if (!$blueprintObject) {
 
 }
 
+# Check to see if Blueprint assignment exists or not
+function doesBlueprintAssignmentExist {
+    $success = $false
+    $attempts = 1
+    while (-not $success) {
+        $blueprintAssignment = Get-AzBlueprintAssignment `
+        -Name $assignmentName `
+        -SubscriptionId $subId `
+        -ErrorVariable $errorVar `
+        -ErrorAction SilentlyContinue 
+
+        Write-Verbose -Message "Checking to see if Blueprint assignment: $assignmentName exists..."
+
+        if (!$blueprintAssignment) {
+            if ($errorVar[0].ToString().Contains("Assignment '$assignmentName' could not be found in subscription '$subId'")) {
+                Write-Verbose -Message "Blueprint assignment does not already exist, proceeding with assignment..."
+
+                $success = $true
+                return "notAssigned"
+            }
+            else {
+                if ($attempts -le $maxRetryAttempts) {
+                    Write-Warning -Message "Unable to check whether assignment exists due to exception: $(($errorVar[0].ToString() -split '\n')[0]) after attempt $attempts..."
+                    $sleep = [math]::Pow($attempts,2)
+            
+                    Start-Sleep -Seconds $sleep
+        
+                    $attempts ++
+                }
+                else {
+                    Write-Error -Message "Unable to check whether assignment exists due to exception: $(($errorVar[0].ToString() -split '\n')[0]) after $attempts attempts"
+                    Throw $errorVar
+
+                }
+            }
+
+        }
+        else {
+            Write-Warning -Message "Blueprint Assignment: $(blueprintAssignment.Id) already exists in subscription: $subId...calling it done"
+            $success = $true
+            return "alreadyAssigned"
+
+        }
+    }
+}
+
 # Execute blueprint assignment
-function assignBlueprint {
-    $assignBlueprintExecute = $false
-    $assignBlueprintExecuteAttempts = 1
+function executeBlueprintAssignment {
+    $success = $false
+    $attempts = 1
     
-    while (-not $assignBlueprintExecute) {
+    while (-not $success) {
         try {
             $script:blueprintAssignment = New-AzBlueprintAssignment `
             -Blueprint $blueprintObject `
@@ -77,70 +123,89 @@ function assignBlueprint {
         
             Write-Verbose -Message "Assigning blueprint assignment: $assignmentName to subscription: $subId"
     
-            $assignBlueprintExecute = $true
+            $success = $true
+
+            return "assignmentExecutionSuceeded"
         
         }
         catch {
-            if ($assignBlueprintExecuteAttempts -le $maxRetryAttempts) {
-                Write-Warning -Message "We've hit an exception: $($_.Exception.Message) after attempt $assignBlueprintExecuteAttempts..."
-                $assignBlueprintExecuteSleep = [math]::Pow($assignBlueprintExecuteAttempts,2)
+            if ($attempts -le $maxRetryAttempts) {
+                Write-Warning -Message "We've hit an exception: $($_.Exception.Message) after attempt $attempts..."
+                
+                $sleep = [math]::Pow($attempts,2)
     
-                Start-Sleep -Seconds $assignBlueprintExecuteSleep
+                Start-Sleep -Seconds $sleep
     
-                $assignBlueprintExecuteAttempts ++
+                $attempts ++
             }
             else {
-                $errorMessage = "Unable to execute blueprint assignment due to exception: $($_.Exception.Message)"
+                $errorMessage = "Unable to execute blueprint assignment due to exception: $($_.Exception.Message) after $attempts attempts"
                 Write-Error -Message $errorMessage
                 throw $errorMessage
     
-            }    
+            }
         }
     }
 }
 
-assignBlueprint $blueprintObject $assignmentName $location $subId $params $maxRetryAttempts
+# Validate blueprint assignment
+function validateBlueprintAssignment {
+    $success = $false
+    $attempts = 1
+    
+    while (!$success) {
+        try {
+            $provisioningState = $(Get-AzBlueprintAssignment `
+            -Name $blueprintAssignment.Name `
+            -SubscriptionId $subId).ProvisioningState
 
-#validate blueprint assignment
-$assignBlueprintValidate = $false
-$assignBlueprintValidateAttempts = 1
+            Write-Verbose -Message "Obtaining provisioning state for Blueprint assignment: $($blueprintAssignment.Name)..."
 
-while (-not $assignBlueprintValidate) {
-    try {
-        $provisioningState = $(Get-AzBlueprintAssignment `
-        -Name $blueprintAssignment.Name `
-        -SubscriptionId $subId).ProvisioningState
-    }
-    catch {
-        Write-Error -Message $_.Exception
-        throw $_.Exception
-    }
+            $success = $true
+        }
+        catch {
+            if ($attempts -le $maxRetryAttempts) {
+                Write-Warning -Message "Unable to validate assignment due to exception: $($_.Exception.Message) after attempt $attempts..."
+                $sleep = [math]::Pow($attempts,2)
+        
+                Start-Sleep -Seconds $sleep
+    
+                $attempts ++
+            }
+            else {
+                Write-Error -Message "Unable to validate assignment due to exception: $($_.Exception.Message) after $attempts attempts"
+                throw $_.Exception
 
-    if ($provisioningState -eq "Failed") {
-        if ($assignBlueprintValidateAttempts -le $maxRetryAttempts) {
-            Write-Warning -Message "Blueprint assignment failed after attempt $assignBlueprintValidateAttempts..."
-            assignBlueprint $blueprintObject $assignmentName $location $subId $params $maxRetryAttempts
+            }
+        }
+    
+        if ($provisioningState -eq "Failed") {
+            Write-Warning -Message "Blueprint assignment has $provisioningState"
 
-            $assignBlueprintValidateAttempts ++
+            return $provisioningState
 
+        }
+        elseif ($provisioningState -eq "Succeeded") {
+            Write-Verbose -Message "Blueprint assignment: $($blueprintAssignment.Name) $provisioningState and has been assigned to subscription: $subId successfully"
+            
+            return $provisioningState
+    
         }
         else {
-            $errorMessage = "Unable to assign Blueprint after $assignBlueprintValidateAttempts attempts"
-            Write-Error -Message $errorMessage
-            throw $errorMessage
+            Write-Warning -Message "Blueprint assignment is in a $provisioningState state..."
 
+            return $provisioningState
+    
         }
     }
-    elseif ($provisioningState -eq "Succeeded") {
-        Write-Verbose -Message "Blueprint assignment: $($blueprintAssignment.Name) has been assigned to subscription: $subId successfully"
-        $assignBlueprintValidate = $true
-
-    }
-    else {
-        Start-Sleep -Seconds 10
-
-    }
 }
+
+doesBlueprintAssignmentExist $assignmentName $subId $maxRetryAttempts
+
+executeBlueprintAssignment $blueprintObject $assignmentName $location $subId $params $maxRetryAttempts
+
+validateBlueprintAssignment $blueprintAssignment $subId $maxRetryAttempts
+
 
 $objOut = [PSCustomObject]@{
     
