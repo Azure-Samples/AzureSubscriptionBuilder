@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [1.1.1] - 2020-06-01
 ### Fixed
-- Added GUID to Blueprint assignment name to avoid duplicate assignments
+- Added GUID to Blueprint assignment name to avoid duplicate assignment names
 - Updated Network Watcher sample policy to latest
 
 ## [1.1.0] - 2020-05-22
