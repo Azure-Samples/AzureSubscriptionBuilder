@@ -547,9 +547,11 @@ if ($webserver -eq $true) {
         Write-Verbose -Message "Dynamically updating bootstrap script"
         $webFormUri = "$($baseStorageUrl)/webserver/webFormDynamic.html"
         $errorPageUri = "$($baseStorageUrl)/webserver/errorPage.html"
+        $imageUri = "$($baseStorageUrl)/webserver/spring-cloud.jpg"
 
         $findWeb = [regex]::escape('wForm')
         $findError = [regex]::escape('ePage')
+        $findImage = [regex]::escape('bImage')
             
         $newInstall = @()
         Get-Content ./webserver/install.sh | `
@@ -559,6 +561,9 @@ if ($webserver -eq $true) {
             }
             elseif ($_ -match $findError) {
                 $newInstall += ($_ -replace $findError, $errorPageUri)
+            }
+            elseif ($_ -match $findImage) {
+                $newInstall += ($_ -replace $findImage, $imageUri)
             }
             else {
                 $newInstall += $_
@@ -608,7 +613,7 @@ if ($webserver -eq $true) {
         $webParamObj = (Get-Content -Path ./infra_templates/webserver/webserverParams.json | ConvertFrom-Json)
         $webParams = $webParamObj.parameters
         $webParams.adminUsername.value = $Name
-        $webParams.dnsNameForPublicIP.value = "asbwebserver"
+        $webParams.dnsNameForPublicIP.value = "$Name-webserver"
         $webParams.ubuntuOSVersion.value = "18.04-LTS"
         $webParams.authenticationType.value = "sshPublicKey"
         $webParams.adminPasswordOrKey.value = $webserverSshKey
