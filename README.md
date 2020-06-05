@@ -340,8 +340,8 @@ Tyler, Harvey, and Chris are just some PNW computer nerds with our heads always 
 **Want to know more about Azure Subscription Builder??**
 
 Please make sure to to check out the official Azure Subscription Builder presentation available here:
-- [PowerPoint Presentation](https://subbuilderstgacct.blob.core.windows.net/presentation/AzureSubscriptionBuilder-Public.pptx)
-- [PDF Document](https://subbuilderstgacct.blob.core.windows.net/presentation/AzureSubscriptionBuilder-Public.pdf)
+- [PowerPoint Presentation](https://subbuildresources.blob.core.windows.net/documentation/AzureSubscriptionBuilder-Public.pptx)
+- [PDF Document](https://subbuildresources.blob.core.windows.net/documentation/AzureSubscriptionBuilder-Public.pdf)
 
 Also, feel free to reach out to subscriptionbuilder@microsoft.com with any questions or feedback!
 
