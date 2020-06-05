@@ -22,11 +22,19 @@ $logFile = "./deploy_$(get-date -format `"yyyyMMddhhmmsstt`").log"
 $ErrorActionPreference = "Stop"
 
 #Validate Name
-Function ValidateName {
-    if ($Name.length -gt 17) {
-        Write-Warning "Name is too long, please shorten to under 17 characters"
-        exit
-    }
+
+Function ValidateName
+{
+    param (
+    [ValidateLength(6,17)]
+    [ValidatePattern('^(?!-)(?!.*--)[a-z]')]
+    [parameter(Mandatory=$true)]
+    [string]
+    $Name
+)
+
+ write-host "Name is"$Name
+
 }
 
 ValidateName $Name
@@ -196,7 +204,7 @@ $spMgmtGroupRole = Get-AzRoleAssignment `
 if ($spMgmtGroupRole) {
     Write-Warning -Message "Owner Role for Management Group: $rootManagementGroup is already assigned to $($sp.DisplayName), continuing with deployment..."
 
-} 
+}
 else {
     Write-Host "INFO: Assigning Owner Role to Service Principal: $($sp.DisplayName) for Management Group: $rootManagementGroup" -ForegroundColor green
     do {
@@ -222,7 +230,7 @@ $spEaRole = Get-AzRoleAssignment `
 if ($spEaRole) {
     Write-Warning -Message "Owner Role for Enrollment Account: $eaObjectId is already assigned to $($sp.DisplayName), continuing with deployment..."
 
-} 
+}
 else {
     Write-Host "INFO: Assigning Owner Role to Service Principal: $($sp.DisplayName) for Enrollment Account: $eaObjectId" -ForegroundColor green
     do {
@@ -318,7 +326,7 @@ if (!$storageAccount) {
     Write-Host "ERROR: Unable to obtain storage context, exiting script!" -ForegroundColor red
     exit
 
-} 
+}
 else {
     try {
         # Find/replace "rootMgmtGroup" for one provided in deployParams.json
@@ -383,7 +391,7 @@ $blueprint =  Get-AzBlueprint `
 if ($blueprint) {
     Write-Warning -Message "Blueprint has already been imported into Management Group: $rootManagementGroup, continuing with deployment..."
 
-} 
+}
 else {
     try {
         Write-Host "INFO: Importing Blueprint: 'sub-poc-blueprint' into $rootManagementGroup" -ForegroundColor green
@@ -552,7 +560,7 @@ if ($webserver -eq $true) {
         $findWeb = [regex]::escape('wForm')
         $findError = [regex]::escape('ePage')
         $findImage = [regex]::escape('bImage')
-            
+
         $newInstall = @()
         Get-Content ./webserver/install.sh | `
         ForEach-Object {
@@ -635,7 +643,7 @@ if ($webserver -eq $true) {
         Write-Host "ERROR: Unable to deploy webserver ARM Template due to an exception, see $logFile for detailed information!" -ForegroundColor red
         exit
     }
-} 
+}
 else {
     Write-Warning -Message "Front end deployment is being skipped based on earlier selection"
 }
