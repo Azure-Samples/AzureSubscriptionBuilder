@@ -9,13 +9,6 @@
                 "description": "User name for the Virtual Machine."
             }
         },
-        "dnsNameForPublicIP": {
-            "defaultValue": "subbuilder",
-            "type": "string",
-            "metadata": {
-                "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
-            }
-        },
         "ubuntuOSVersion": {
             "type": "string",
             "defaultValue": "18.04-LTS",
@@ -58,10 +51,17 @@
                 "description": "The base URI where artifacts required by this template are located."
             }
         },
-        "webserverAdminCidr": {
+        "webAdminAccessCidr": {
             "type": "string",
             "metadata": {
                 "description": "IP CIDR Block for server management using SSH."
+            }
+        },
+        "publicIpAddressName": {
+            "defaultValue": "webserver-pip",
+            "type": "string",
+            "metadata": {
+                "description": "Name of the public IP address for the webserver"
             }
         }
     },
@@ -72,8 +72,6 @@
         "addressPrefix": "10.0.0.0/16",
         "subnetName": "webserver-subnet",
         "subnetPrefix": "10.0.0.0/24",
-        "publicIPAddressName": "webserver-pip",
-        "publicIPAddressType": "Dynamic",
         "vmName": "webserver",
         "vmSize": "Standard_B2S",
         "virtualNetworkName": "webserver-vnet",
@@ -93,18 +91,6 @@
     },
     "resources": [
         {
-            "apiVersion": "2015-05-01-preview",
-            "type": "Microsoft.Network/publicIPAddresses",
-            "name": "[variables('publicIPAddressName')]",
-            "location": "[parameters('location')]",
-            "properties": {
-                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
-                "dnsSettings": {
-                    "domainNameLabel": "[parameters('dnsNameForPublicIP')]"
-                }
-            }
-        },
-        {
             "comments": "Default Network Security Group for template",
             "type": "Microsoft.Network/networkSecurityGroups",
             "apiVersion": "2019-08-01",
@@ -120,7 +106,7 @@
                             "direction": "Inbound",
                             "destinationPortRange": "22",
                             "protocol": "Tcp",
-                            "sourceAddressPrefix": "[parameters('webserverAdminCidr')]",
+                            "sourceAddressPrefix": "[parameters('webAdminAccessCidr')]",
                             "sourcePortRange": "*",
                             "destinationAddressPrefix": "*"
                         }
@@ -187,7 +173,6 @@
             "name": "[variables('nicName')]",
             "location": "[parameters('location')]",
             "dependsOn": [
-                "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]",
                 "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
             ],
             "properties": {
@@ -197,7 +182,7 @@
                         "properties": {
                             "privateIPAllocationMethod": "Dynamic",
                             "publicIPAddress": {
-                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',parameters('publicIpAddressName'))]"
                             },
                             "subnet": {
                                 "id": "[variables('subnetRef')]"

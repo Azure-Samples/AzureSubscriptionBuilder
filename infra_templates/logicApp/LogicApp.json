@@ -69,6 +69,12 @@
             "metadata": {
                 "description": "Azure Tenant ID"
             }
+        },
+        "webserverTriggerCidr": {
+            "type": "string",
+            "metadata": {
+                "description": "PublicIP Address of the webserver"
+            }
         }
     },
     "resources": [
@@ -885,6 +891,15 @@
                                 "connectionName": "DocumentDb"
                             }
                         }
+                    }
+                },
+                "accessControl": {
+                    "triggers": {
+                        "allowedCallerIpAddresses": [
+                            {
+                                "addressRange": "[parameters('webserverTriggerCidr')]"
+                            }
+                        ]
                     }
                 }
             },

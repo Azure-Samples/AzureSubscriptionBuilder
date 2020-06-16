@@ -8,12 +8,6 @@
                 "description": "Webserver Admin user name"
             }
         },
-        "dnsNameForPublicIP": {
-            "value": "",
-            "metadata": {
-                "description": "Unique DNS Name for the Public IP used to access the Webserver."
-            }
-        },
         "ubuntuOSVersion": {
             "value": "",
             "metadata": {
@@ -38,10 +32,16 @@
                 "description": "The base URI where artifacts required by this template are located."
             }
         },
-        "webserverAdminCidr": {
+        "webAdminAccessCidr": {
             "value": "",
             "metadata": {
                 "description": "IP CIDR Block for server management using SSH."
+            }
+        },
+        "publicIpAddressName": {
+            "value": "string",
+            "metadata": {
+                "description": "Name of the public IP address for the webserver"
             }
         }
     }

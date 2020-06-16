@@ -1,0 +1,24 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "dnsNameForPublicIP": {
+            "value": "",
+            "metadata": {
+                "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
+            }
+        },
+        "publicIpAddressName": {
+            "value": "",
+            "metadata": {
+                "description": "Public IP resource name"
+            }
+        },
+        "location": {
+            "value": "",
+            "metadata": {
+                "description": "Location for all Webserver resources."
+            }
+        }
+    }
+}

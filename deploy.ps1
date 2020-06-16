@@ -11,7 +11,7 @@ $rootManagementGroup = $parameters.rootManagementGroup
 $Name = $parameters.Name.ToLower()
 $pfxCertPath = $parameters.pfxCertPath
 $webserverSshKey = $parameters.webserverSshKey
-$webserverAdminCidr = $parameters.webserverAdminCidr
+$webAdminAccessCidr = $parameters.webAdminAccessCidr
 $certPass = ConvertTo-SecureString $parameters.certPass -AsPlainText -Force
 $tenantId = (Get-AzContext).Tenant.Id
 $subId = (Get-AzContext).Subscription.Id
@@ -469,6 +469,47 @@ catch {
 
 }
 
+if ($webserver -eq $true) {
+    # Deploy ARM template to create Webserver Public IP address. Doing so ahead of webserver creation allows for greater security by 
+    # only allowing the deployed webserver to trigger the logic app.
+    # Create webserver resource group if it doesn't already exist
+    $webrgcheck = Get-AzResourceGroup -Name "$Name-webserver-rg" -ErrorAction SilentlyContinue
+    if (!$webrgcheck) {
+        Write-Host "INFO: Creating new resource group: $Name-webserver-rg" -ForegroundColor green
+        Write-Verbose -Message "Creating new resource group: $Name-webserver-rg"
+        New-AzResourceGroup -Name "$Name-webserver-rg" -Location $location
+
+    }
+    else {
+        Write-Warning -Message "Resource Group: $Name-webserver-rg already exists. Continuing with deployment..."
+
+    }
+
+    try {
+        # Build Public IP Parameters Dynamically
+        Write-Host "INFO: Deploying ARM template to create Webserver Public IP Address" -ForegroundColor Green
+        Write-Verbose -Message "Building Public IP Parameter file..."
+        $pipParamObj = (Get-Content -Path ./infra_templates/webserver/publicipParams.json | ConvertFrom-Json)
+        $pipParams = $pipParamObj.parameters
+        $pipParams.dnsNameForPublicIP.value = "$Name-webserver"
+        $pipParams.publicIpAddressName.value = "$Name-webserver-pip"
+        $pipParams.location.value = $location
+        $pipParamObj | ConvertTo-Json -Depth 100 | Out-File -FilePath "./infra_templates/webserver/publicipDynamicParams.json" -Force
+
+        # Deploy ARM to create Public IP Address
+        Write-Verbose -Message "Deploying ARM Template to create public ip address resource"
+        New-AzResourceGroupDeployment `
+        -ResourceGroupName "$Name-webserver-rg" `
+        -TemplateFile ./infra_templates/webserver/publicip.json `
+        -TemplateParameterFile ./infra_templates/webserver/publicipDynamicParams.json 
+    }
+    catch {
+        $_ | Out-File -FilePath $logFile -Append
+        Write-Host "ERROR: Unable to deploy Public IP Address ARM Template due to an exception, see $logFile for detailed information!" -ForegroundColor red
+        exit
+    }
+}
+
 try {
     # Build Logic App parameter file dynamically
     Write-Host "INFO: Deploying ARM template to create Logic App Workflow" -ForegroundColor green
@@ -486,6 +527,7 @@ try {
     $laParams.appSecret.reference.keyVault.id = "/subscriptions/$subId/resourceGroups/$Name-rg/providers/Microsoft.KeyVault/vaults/$Name-keyvault"
     $laParams.appSecret.reference.secretName = "$Name-secret"
     $laParams.tenantId.value = $tenantId
+    $laParams.webserverTriggerCidr.value = (Get-AzPublicIpAddress -Name "$Name-webserver-pip" | Select-Object -ExpandProperty IpAddress) + "/32"
     $laParamObj | ConvertTo-Json -Depth 100 | Out-File -FilePath "./infra_templates/logicApp/LogicAppDynamicParams.json" -Force
 
     # Deploy ARM template to create logic app workflow
@@ -502,19 +544,6 @@ catch {
 }
 
 if ($webserver -eq $true) {
-    # Create webserver resource group if it doesn't already exist
-    $webrgcheck = Get-AzResourceGroup -Name "$Name-webserver-rg" -ErrorAction SilentlyContinue
-    if (!$webrgcheck) {
-        Write-Host "INFO: Creating new resource group: $Name-webserver-rg" -ForegroundColor green
-        Write-Verbose -Message "Creating new resource group: $Name-webserver-rg"
-        New-AzResourceGroup -Name "$Name-webserver-rg" -Location $location
-
-    }
-    else {
-        Write-Warning -Message "Resource Group: $Name-webserver-rg already exists. Continuing with deployment..."
-
-    }
-
     try {
         # Enable Static Website and upload contents if selected
         # Gather Logic App endpoint and edit/create the "webFormDynamic.html" for website content
@@ -621,12 +650,12 @@ if ($webserver -eq $true) {
         $webParamObj = (Get-Content -Path ./infra_templates/webserver/webserverParams.json | ConvertFrom-Json)
         $webParams = $webParamObj.parameters
         $webParams.adminUsername.value = $Name
-        $webParams.dnsNameForPublicIP.value = "$Name-webserver"
         $webParams.ubuntuOSVersion.value = "18.04-LTS"
         $webParams.authenticationType.value = "sshPublicKey"
         $webParams.adminPasswordOrKey.value = $webserverSshKey
         $webParams.artifactsLocation.value = "$($baseStorageUrl)/webserver/"
-        $webParams.webserverAdminCidr.value = $webserverAdminCidr
+        $webParams.webAdminAccessCidr.value = $webAdminAccessCidr
+        $webParams.publicIpAddressName.value = "$Name-webserver-pip"
         $webParamObj | ConvertTo-Json -Depth 100 | Out-File -FilePath "./infra_templates/webserver/webserverDynamicParams.json" -Force
 
         # Deploy ARM template to create webserver

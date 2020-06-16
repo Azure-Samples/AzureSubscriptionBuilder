@@ -1,9 +1,9 @@
 {
-  "Name": "",
-  "location": "",
-  "rootManagementGroup": "",
-  "pfxCertPath": "",
-  "certPass": "",
-  "webserverSshKey":"",
-  "webserverAdminCidr": ""
+  "Name": "issue29",
+  "location": "westus2",
+  "rootManagementGroup": "GlobalRootGroup",
+  "pfxCertPath": "/Users/tpeterson/msftCert/autoCert.pfx",
+  "certPass": "Password1234",
+  "webserverSshKey":"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTdQgSSE5m2qbAqNQ57+pomhynqMqqJN70QFW7cJAJ/WaPIut2FAYlCVhz913QGbdJqrFaT6P3yUs3NS37/haXrKOQqz/b6UYqrki0ioi/MxLiilNOh4TBfWoF9bvQsaaNo/emjfAtfE5VvEbyQOwNF17RCsuCiELGEgqlOSnecsemi6IaOBoUa0V1NdIOrjJZLDVW0lcebHSGre78lSwouYhmtmpsiw1ThKpAuZHPBwHgDjg184t3HgApnIqADrXyR3hZ9WIyrFE5LAfB45Q+hL7Il17k+RAEt1UCi2pvTJtKYqUob4NEaHgVuWiW2n+RKM4oDG8d5Fx8L2vdGfU7 tpeterson@MININT-2N8FKMU.redmond.corp.microsoft.com",
+  "webAdminAccessCidr": "67.170.52.200/32"
 }
