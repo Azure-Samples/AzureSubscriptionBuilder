@@ -15,7 +15,6 @@ $webserverAdminCidr = $parameters.webserverAdminCidr
 $certPass = ConvertTo-SecureString $parameters.certPass -AsPlainText -Force
 $tenantId = (Get-AzContext).Tenant.Id
 $subId = (Get-AzContext).Subscription.Id
-$baseStorageUrl = "https://$($Name)stgacct.blob.core.windows.net/sub-builder"
 $logFile = "./deploy_$(get-date -format `"yyyyMMddhhmmsstt`").log"
 
 # Set preference variables
@@ -321,6 +320,7 @@ catch {
 Write-Host "INFO: Obtaining Storage Account context for artifact uploads..." -ForegroundColor green
 Write-Verbose -Message "Obtaining Storage Account context for artifact uploads..."
 $storageAccount = Get-AzStorageAccount -ResourceGroupName "$Name-rg" -Name "$($Name)stgacct"
+$baseStorageUrl = "$($storageAccount.PrimaryEndPoints.Blob)sub-builder"
 
 if (!$storageAccount) {
     Write-Host "ERROR: Unable to obtain storage context, exiting script!" -ForegroundColor red
