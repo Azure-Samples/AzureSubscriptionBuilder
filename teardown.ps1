@@ -22,7 +22,7 @@ if ($rg) {
     }
     catch {
         $_ | Out-File -FilePath $logFile -Append
-        Write-Host "ERROR: Deletion of Resouce Group: $Name-rg has failed due to an exception, see $logFile for detailed information!" -ForegroundColor red
+        Write-Host "ERROR: Deletion of Resource Group: $Name-rg has failed due to an exception, see $logFile for detailed information!" -ForegroundColor red
         exit 
 
     }
@@ -42,7 +42,7 @@ if ($webrg) {
     }
     catch {
         $_ | Out-File -FilePath $logFile -Append
-        Write-Host "ERROR: Deletion of Resouce Group: $Name-webserver-rg has failed due to an exception, see $logFile for detailed information!" -ForegroundColor red
+        Write-Host "ERROR: Deletion of Resource Group: $Name-webserver-rg has failed due to an exception, see $logFile for detailed information!" -ForegroundColor red
         exit 
 
     }
